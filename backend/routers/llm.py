@@ -53,8 +53,8 @@ async def run_plotter(req: PlotterRequest):
         {"role": "user", "content": user_msg}
     ]
     
-    generator = await ollama_service.generate(messages, stream=True)
-    return StreamingResponse(generator, media_type="text/plain")
+    result = await ollama_service.generate(messages, stream=False)
+    return {"content": result}
 
 @router.post("/antagonist")
 async def run_antagonist(req: AntagonistRequest):
@@ -71,8 +71,8 @@ async def run_antagonist(req: AntagonistRequest):
         {"role": "user", "content": user_msg}
     ]
     
-    generator = await ollama_service.generate(messages, stream=True)
-    return StreamingResponse(generator, media_type="text/plain")
+    result = await ollama_service.generate(messages, stream=False)
+    return {"content": result}
 
 @router.post("/plotter-revision")
 async def run_revision(req: RevisionRequest):
@@ -93,8 +93,8 @@ async def run_revision(req: RevisionRequest):
         {"role": "user", "content": user_msg}
     ]
     
-    generator = await ollama_service.generate(messages, stream=True)
-    return StreamingResponse(generator, media_type="text/plain")
+    result = await ollama_service.generate(messages, stream=False)
+    return {"content": result}
 
 @router.get("/health")
 async def health_check():

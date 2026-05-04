@@ -1,23 +1,36 @@
 import os
 import json
 import httpx
+
+import re
+
 from typing import AsyncGenerator, Any
 from backend.utils.logger import log_llm_call
+
+from dotenv import load_dotenv
+load_dotenv()
+
+
+def strip_thinking(text: str) -> str:
+    # Remove <think>...</think> blocks including the tags themselves
+    return re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
 
 class OllamaService:
     def __init__(self):
         self.base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        self.model = os.getenv("OLLAMA_MODEL", "qwen3-14b-abliterated:Q4_K_M")
+        self.model = os.getenv("OLLAMA_MODEL", "richardyoung/qwen3-14b-abliterated:Q5_K_M")
 
     async def generate(self, messages: list[dict], stream: bool = True) -> Any:
         # messages = [
         #   {"role": "system", "content": "You are a creative writing assistant..."},
         #   {"role": "user", "content": "Write a chapter outline for..."}
         # ]
-        url = f"{self.base_url}/api/chat"
+        url = f"{self.base_url}/api/generate"
+        system_content = next((m["content"] for m in messages if m["role"] == "system"), "")
+        user_content = next((m["content"] for m in messages if m["role"] == "user"), "")
         payload = {
             "model": self.model,
-            "messages": messages,
+            "prompt": f"{system_content}\n\n{user_content}",
             "stream": stream
         }
 
@@ -40,8 +53,8 @@ class OllamaService:
                         async for chunk in response.aiter_lines():
                             if chunk:
                                 data = json.loads(chunk)
-                                if "message" in data and "content" in data["message"]:
-                                    content = data["message"]["content"]
+                                if "response" in data:
+                                    content = data["response"]
                                     full_response += content
                                     yield content
                     log_llm_call(role, messages, full_response, self.model)
@@ -50,9 +63,10 @@ class OllamaService:
                 response = await client.post(url, json=payload)
                 response.raise_for_status()
                 data = response.json()
-                full_response = data.get("message", {}).get("content", "")
-                log_llm_call(role, messages, full_response, self.model)
-                return full_response
+                full_response = data.get("response", "")
+                cleaned = strip_thinking(full_response)
+                log_llm_call(role, messages, cleaned, self.model)
+                return cleaned
 
     async def health_check(self) -> bool:
         """Calls GET http://localhost:11434/api/tags to verify Ollama is running."""

@@ -4,6 +4,7 @@ from datetime import datetime
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional
+import re
 
 from backend.models.schemas import BookProject
 from backend.utils.snapshot import save_snapshot, load_snapshot, suggest_filename
@@ -53,13 +54,14 @@ async def list_projects():
 
 @router.get("/suggest-filename")
 async def suggest_filename_route(title: str):
-    dummy_project = BookProject(
-        id="", title=title, genre="", tone="", audience="", 
-        target_word_count=0, target_chapter_count=0, phase="A", 
-        context_elements=[], chapters=[], world_dict={}, model_name="", 
-        created_at="", updated_at="", snapshot_notes=""
-    )
-    return {"filename": suggest_filename(dummy_project)}
+    title_clean = title.lower()
+    title_clean = re.sub(r'[^a-z0-9\s-]', '', title_clean)
+    title_clean = re.sub(r'[\s-]+', '_', title_clean).strip('_')
+    if not title_clean:
+        title_clean = "untitled"
+    now = datetime.now()
+    filename = f"bookbot_{title_clean}_{now.strftime('%Y%m%d_%H%M')}.json"
+    return {"filename": filename}
 
 @router.post("/new")
 async def new_project():

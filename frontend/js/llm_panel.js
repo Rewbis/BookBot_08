@@ -55,27 +55,6 @@ window.LLMPanel = {
         }
     },
 
-    async handleStreamResponse(response, targetTextareaEl) {
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        let done = false;
-        let fullText = "";
-        
-        targetTextareaEl.value = "";
-        
-        while (!done) {
-            const { value, done: doneReading } = await reader.read();
-            done = doneReading;
-            if (value) {
-                const chunkValue = decoder.decode(value, { stream: true });
-                fullText += chunkValue;
-                targetTextareaEl.value = fullText;
-                targetTextareaEl.scrollTop = targetTextareaEl.scrollHeight;
-            }
-        }
-        return fullText;
-    },
-
     async runPlotter() {
         if (this.isGenerating) return;
         this.showGeneratingState(true);
@@ -93,7 +72,9 @@ window.LLMPanel = {
                     system_prompt_override: sys_override || null
                 })
             });
-            this.plotterOutput = await this.handleStreamResponse(res, this.txtPlotOut);
+            const data = await res.json();
+            this.plotterOutput = data.content;
+            this.txtPlotOut.value = data.content;
             
             this.btnAccPlot.disabled = false;
             this.btnEditAccPlot.disabled = false;
@@ -130,7 +111,9 @@ window.LLMPanel = {
                     system_prompt_override: sys_override || null
                 })
             });
-            this.antagonistOutput = await this.handleStreamResponse(res, this.txtAntagOut);
+            const data = await res.json();
+            this.antagonistOutput = data.content;
+            this.txtAntagOut.value = data.content;
             
             this.btnRunRev.style.display = 'inline-block';
             this.btnRunRev.disabled = false;
@@ -162,7 +145,9 @@ window.LLMPanel = {
                     system_prompt_override: sys_override || null
                 })
             });
-            this.revisionOutput = await this.handleStreamResponse(res, this.txtRevOut);
+            const data = await res.json();
+            this.revisionOutput = data.content;
+            this.txtRevOut.value = data.content;
             
             this.currentRound++;
             this.btnRerunLoop.style.display = 'inline-block';

@@ -11,11 +11,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btn-cancel-load').addEventListener('click', () => {
         document.getElementById('load-modal').style.display = 'none';
     });
-
-    document.getElementById('btn-add-plot-point').addEventListener('click', () => {
-        const text = prompt("Enter plot point:");
-        if (text) {
-            window.ContextPanel.addElement("Plot Point", text, "human", "plot_point");
+    window.addEventListener('beforeunload', (e) => {
+        if (window.ContextPanel.contextElements.length > 0) {
+            e.preventDefault();
+            e.returnValue = '';
         }
     });
 
