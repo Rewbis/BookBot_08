@@ -12,13 +12,15 @@ load_dotenv()
 
 
 def strip_thinking(text: str) -> str:
-    # Remove <think>...</think> blocks including the tags themselves
-    return re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+    if '</think>' in text:
+        text = text.split('</think>', 1)[1]
+    return text.strip()
 
 class OllamaService:
     def __init__(self):
         self.base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         self.model = os.getenv("OLLAMA_MODEL", "richardyoung/qwen3-14b-abliterated:Q5_K_M")
+        self.num_ctx = int(os.getenv("OLLAMA_NUM_CTX", "16384"))
 
     async def generate(self, messages: list[dict], stream: bool = True) -> Any:
         # messages = [
@@ -31,7 +33,10 @@ class OllamaService:
         payload = {
             "model": self.model,
             "prompt": f"{system_content}\n\n{user_content}",
-            "stream": stream
+            "stream": stream,
+            "options": {
+                "num_ctx": self.num_ctx
+            }
         }
 
         role = "unknown"
@@ -43,6 +48,10 @@ class OllamaService:
                 role = "antagonist"
             elif "revising" in sys_msg.lower():
                 role = "plotter-revision"
+            elif "outliner" in sys_msg.lower():
+                role = "outliner"
+            elif "factual summary" in sys_msg.lower():
+                role = "summariser"
         
         async with httpx.AsyncClient(timeout=300.0) as client:
             if stream:

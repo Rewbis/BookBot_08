@@ -208,3 +208,105 @@ hr { border: 0; border-top: 1px solid var(--border-color); margin: 20px 0; }
     max-width: 90%;
 }
 .modal-buttons { margin-top: 15px; display: flex; justify-content: flex-end; gap: 10px; }
+
+/* Phase B */
+.context-item[data-phase="B"] { background-color: #1a2a3a; border-color: #3a6a9a; }
+.context-item[data-phase="B"] .item-label { color: #a0c4e0; }
+.context-item[data-phase="B"] .token-badge { background-color: #3a6a9a; }
+
+/* Phase C */
+.context-item[data-phase="C"] { background-color: #1a2e1a; border-color: #3a8a3a; }
+.context-item[data-phase="C"] .item-label { color: #a0d4a0; }
+
+/* Source badges */
+.source-badge {
+    font-size: 0.7rem;
+    padding: 2px 5px;
+    border-radius: 10px;
+    margin-left: 5px;
+    color: #fff;
+    vertical-align: middle;
+}
+.source-badge.human { background-color: #666; }
+.source-badge.llm { background-color: #b8860b; }
+.source-badge.tavily { background-color: #008080; }
+
+/* Tooltip */
+.info-tooltip {
+    position: relative;
+    display: inline-block;
+    cursor: help;
+    margin-left: 5px;
+}
+.info-tooltip .tooltip-text {
+    visibility: hidden;
+    width: 250px;
+    background-color: #333;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 8px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%; 
+    left: 50%;
+    margin-left: -125px;
+    font-size: 0.8rem;
+    font-weight: normal;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+.info-tooltip:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Phase B Header & Card overrides */
+.phase-b-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+.phase-b-controls { display: flex; gap: 15px; align-items: center; }
+.chapter-card {
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+.chapter-card.approved-chapter {
+    border-color: var(--btn-success);
+}
+.chapter-card .top-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.chapter-badge {
+    background-color: var(--btn-primary);
+    color: #fff;
+    font-size: 0.8rem;
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-weight: bold;
+}
+.chapter-status { margin-left: auto; font-size: 1.2rem; }
+.card-btn { background: none; border: none; cursor: pointer; color: #ccc; font-size: 1rem; }
+.card-btn:hover { color: #fff; }
+.chapter-expanded-content {
+    margin-top: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.skeleton-approved {
+    border-left: 4px solid var(--btn-success) !important;
+    background-color: #1a221a !important;
+}
+
+#undo-delete-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--btn-secondary);
+    padding: 8px 10px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}

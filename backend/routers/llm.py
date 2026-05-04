@@ -1,6 +1,5 @@
 import os
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -32,6 +31,18 @@ class RevisionRequest(BaseModel):
     system_prompt_override: Optional[str] = None
     log_label: Optional[str] = None
 
+class PriorSkeleton(BaseModel):
+    number: int
+    skeleton: str
+
+class OutlinerRequest(BaseModel):
+    context_elements: List[ContextElementBase]
+    prior_skeletons: List[PriorSkeleton]
+    chapter_number: int
+    chapter_title: str
+    intention: str
+    scene_notes: str
+
 def build_user_message(context_elements: List[ContextElementBase]) -> str:
     parts = []
     for el in context_elements:
@@ -44,7 +55,9 @@ async def run_plotter(req: PlotterRequest):
         "You are a creative writing plotter. Your role is to build a rich, coherent story world "
         "and plot structure based on the author's inputs. Return a structured world dictionary "
         "covering: characters (with motivations, voice, arc), locations, key events, themes, "
-        "and a plot overview. Be specific and inventive."
+        "and a plot overview. Be specific and inventive. Return ONLY the world dictionary and plot overview. "
+        "Do not generate chapter outlines or chapter-by-chapter breakdowns — that comes later. "
+        "Focus on: characters, world, themes, and overall story arc only."
     )
     user_msg = build_user_message(req.context_elements)
     
@@ -81,12 +94,43 @@ async def run_revision(req: RevisionRequest):
         "and plot structure based on the author's inputs. Return a structured world dictionary "
         "covering: characters (with motivations, voice, arc), locations, key events, themes, "
         "and a plot overview. Be specific and inventive. "
+        "Return ONLY the world dictionary and plot overview. "
+        "Do not generate chapter outlines or chapter-by-chapter breakdowns — that comes later. "
+        "Focus on: characters, world, themes, and overall story arc only."
         "You are revising your previous plan in response to editorial critique. Address the valid "
         "criticisms. Do not mention the critique process in your output — just produce an improved plan."
     )
     user_msg = build_user_message(req.context_elements)
     user_msg += f"\n## Plotter Output\n{req.plotter_output}\n"
     user_msg += f"\n## Antagonist Critique\n{req.antagonist_critique}\n"
+    
+    messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": user_msg}
+    ]
+    
+    result = await ollama_service.generate(messages, stream=False)
+    return {"content": result}
+
+@router.post("/outliner")
+async def run_outliner(req: OutlinerRequest):
+    sys_prompt = (
+        "You are a skilled story outliner. Your job is to write a concise chapter skeleton "
+        "for the chapter specified. A skeleton should cover: the key events that occur, "
+        "character motivations in this chapter, the emotional arc, and how the chapter "
+        "ends. Be specific and concrete. Keep it to 200-400 words. Do not write prose — "
+        "write a structured outline."
+    )
+    user_msg = build_user_message(req.context_elements)
+    
+    if req.prior_skeletons:
+        for s in req.prior_skeletons:
+            user_msg += f"## Chapter {s.number} Skeleton\n{s.skeleton}\n\n"
+            
+    user_msg += f"## Current Chapter\n"
+    user_msg += f"Chapter {req.chapter_number}: {req.chapter_title}\n"
+    user_msg += f"Intention: {req.intention}\n"
+    user_msg += f"Scene Notes: {req.scene_notes}\n"
     
     messages = [
         {"role": "system", "content": sys_prompt},
@@ -103,3 +147,7 @@ async def health_check():
         return {"status": "ok"}
     else:
         raise HTTPException(status_code=503, detail="Ollama is unreachable")
+
+@router.get("/config")
+async def get_config():
+    return {"model_name": os.getenv("OLLAMA_MODEL", "")}

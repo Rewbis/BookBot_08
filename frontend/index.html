@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BookBot 08</title>
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
+
 <body>
     <header>
         <div class="header-left">
@@ -25,7 +27,9 @@
     <main class="container">
         <!-- LEFT COLUMN -->
         <aside class="context-panel">
-            <h2>Context Window</h2>
+            <h3>Context Window <span class="info-tooltip">ℹ️<span class="tooltip-text">Elements are sent to the LLM
+                        top-to-bottom. Place the most important context at the BOTTOM — the LLM gives more weight to
+                        recent (lower) items.</span></span></h3>
             <div class="token-tracker">
                 <div class="token-text">Total tokens to send: <span id="token-total-count">0</span> / 32,000</div>
                 <div class="token-bar-container">
@@ -42,7 +46,7 @@
         <section class="work-panel">
             <div class="tabs">
                 <button class="tab-btn active" data-tab="tab-a">Phase A: Concept</button>
-                <button class="tab-btn disabled" data-tab="tab-b" title="Coming in V2">Phase B: Outlines</button>
+                <button class="tab-btn" data-tab="tab-b">Phase B: Outlines</button>
                 <button class="tab-btn disabled" data-tab="tab-c" title="Coming in V2">Phase C: Drafting</button>
                 <button class="tab-btn disabled" data-tab="tab-d" title="Coming in V2">Phase D: Export</button>
             </div>
@@ -79,7 +83,7 @@
                 <div class="generation-controls">
                     <label>System Prompt Override</label>
                     <textarea id="system-prompt" rows="3" placeholder="Leave blank for default prompt..."></textarea>
-                    
+
                     <div class="control-row">
                         <label>Antagonist Rounds: <input type="number" id="antagonist-rounds" value="1" min="0"></label>
                     </div>
@@ -90,28 +94,49 @@
                         <button id="btn-accept-plotter" class="btn-success" disabled>Accept Output</button>
                         <button id="btn-edit-accept-plotter" class="btn-secondary" disabled>Edit & Accept</button>
                     </div>
-                    
-                    <textarea id="plotter-output" class="streaming-output" rows="10" readonly placeholder="Plotter output will appear here..."></textarea>
-                    
-                    <div class="button-row mt-2">
-                        <button id="btn-run-antagonist" class="btn-danger" style="display: none;">Run Antagonist</button>
-                    </div>
-                    
-                    <textarea id="antagonist-output" class="streaming-output" rows="10" readonly placeholder="Antagonist output will appear here..." style="display: none;"></textarea>
+
+                    <textarea id="plotter-output" class="streaming-output" rows="10" readonly
+                        placeholder="Plotter output will appear here..."></textarea>
 
                     <div class="button-row mt-2">
-                        <button id="btn-run-revision" class="btn-primary" style="display: none;">Run Plotter Revision</button>
-                        <button id="btn-rerun-loop" class="btn-secondary" style="display: none;">Re-run Antagonist Loop</button>
-                        <button id="btn-accept-revision" class="btn-success" style="display: none;">Accept Revision as Final</button>
+                        <button id="btn-run-antagonist" class="btn-danger" style="display: none;">Run
+                            Antagonist</button>
                     </div>
-                    
-                    <textarea id="revision-output" class="streaming-output" rows="10" readonly placeholder="Revision output will appear here..." style="display: none;"></textarea>
+
+                    <textarea id="antagonist-output" class="streaming-output" rows="10" readonly
+                        placeholder="Antagonist output will appear here..." style="display: none;"></textarea>
+
+                    <div class="button-row mt-2">
+                        <button id="btn-run-revision" class="btn-primary" style="display: none;">Run Plotter
+                            Revision</button>
+                        <button id="btn-rerun-loop" class="btn-secondary" style="display: none;">Re-run Antagonist
+                            Loop</button>
+                        <button id="btn-accept-revision" class="btn-success" style="display: none;">Accept Revision as
+                            Final</button>
+                    </div>
+
+                    <textarea id="revision-output" class="streaming-output" rows="10" readonly
+                        placeholder="Revision output will appear here..." style="display: none;"></textarea>
                 </div>
             </div>
-            
-            <div class="tab-content" id="tab-b" style="display: none;"><h2>Phase B: Outlines (Coming soon)</h2></div>
-            <div class="tab-content" id="tab-c" style="display: none;"><h2>Phase C: Drafting (Coming soon)</h2></div>
-            <div class="tab-content" id="tab-d" style="display: none;"><h2>Phase D: Export (Coming soon)</h2></div>
+
+            <div class="tab-content" id="tab-b" style="display: none;">
+                <div class="phase-b-header">
+                    <div class="phase-b-controls">
+                        <button id="btn-expand-collapse-all" class="btn-secondary">Expand All</button>
+                        <span id="phase-b-status">0 / 0 chapters approved</span>
+                    </div>
+                </div>
+                <div id="chapter-cards-container">
+                    <!-- Chapter cards rendered here by chapter_panel.js -->
+                </div>
+            </div>
+            <div class="tab-content" id="tab-c" style="display: none;">
+                <h2>Phase C: Drafting (Coming soon)</h2>
+            </div>
+            <div class="tab-content" id="tab-d" style="display: none;">
+                <h2>Phase D: Export (Coming soon)</h2>
+            </div>
         </section>
     </main>
 
@@ -126,7 +151,7 @@
             </div>
         </div>
     </div>
-    
+
     <div id="load-modal" class="modal" style="display: none;">
         <div class="modal-content">
             <h3>Load Project</h3>
@@ -140,7 +165,9 @@
     <!-- Scripts -->
     <script src="/static/js/context_panel.js"></script>
     <script src="/static/js/llm_panel.js"></script>
+    <script src="/static/js/chapter_panel.js"></script>
     <script src="/static/js/snapshot.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
+
 </html>

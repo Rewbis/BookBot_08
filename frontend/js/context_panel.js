@@ -1,6 +1,8 @@
 window.ContextPanel = {
     contextElements: [],
     editingId: null,
+    deletedStack: [],
+    undoTimeout: null,
 
     init() {
         this.listEl = document.getElementById('context-element-list');
@@ -23,11 +25,11 @@ window.ContextPanel = {
         });
     },
 
-    async addElement(label, content, source, element_type) {
+    async addElement(label, content, source, element_type, phase="A") {
         const id = 'el_' + Date.now() + '_' + Math.floor(Math.random()*1000);
         const element = {
             id, label, content, source, element_type,
-            phase: 'A',
+            phase: phase,
             order: this.contextElements.length,
             enabled: true,
             token_count: 0,
@@ -62,6 +64,42 @@ window.ContextPanel = {
             el.enabled = !el.enabled;
             this.renderContextPanel();
         }
+    },
+
+    deleteElement(id) {
+        if (!confirm("Delete this element?")) return;
+        const index = this.contextElements.findIndex(e => e.id === id);
+        if (index === -1) return;
+        
+        const deletedEl = this.contextElements.splice(index, 1)[0];
+        
+        // Add to stack with timestamp
+        const deleteItem = { element: deletedEl, originalIndex: index, timestamp: Date.now() };
+        this.deletedStack.push(deleteItem);
+        if (this.deletedStack.length > 10) this.deletedStack.shift();
+        
+        clearTimeout(this.undoTimeout);
+        this.undoTimeout = setTimeout(() => {
+            // Remove items older than 30s
+            const now = Date.now();
+            this.deletedStack = this.deletedStack.filter(item => now - item.timestamp < 30000);
+            this.renderContextPanel();
+        }, 30000);
+        
+        this.renderContextPanel();
+    },
+    
+    undoDelete() {
+        if (this.deletedStack.length === 0) return;
+        const lastDeleted = this.deletedStack.pop();
+        this.contextElements.splice(lastDeleted.originalIndex, 0, lastDeleted.element);
+        
+        this.contextElements.forEach((el, idx) => el.order = idx);
+        
+        if (this.deletedStack.length === 0) {
+            clearTimeout(this.undoTimeout);
+        }
+        this.renderContextPanel();
     },
 
     editElement(id) {
@@ -100,11 +138,25 @@ window.ContextPanel = {
 
     renderContextPanel() {
         this.listEl.innerHTML = '';
+        
+        const now = Date.now();
+        const validUndoItems = this.deletedStack.filter(item => now - item.timestamp < 30000);
+        if (validUndoItems.length > 0) {
+            const undoDiv = document.createElement('div');
+            undoDiv.id = 'undo-delete-container';
+            undoDiv.innerHTML = `
+                <span>Element deleted.</span>
+                <button class="btn-secondary" onclick="ContextPanel.undoDelete()">Undo</button>
+            `;
+            this.listEl.appendChild(undoDiv);
+        }
+
         this.contextElements.sort((a, b) => a.order - b.order).forEach(el => {
             const div = document.createElement('div');
             div.className = 'context-item' + (!el.enabled ? ' disabled-item' : '');
             div.draggable = true;
             div.dataset.id = el.id;
+            div.dataset.phase = el.phase || 'A';
 
             // Drag events
             div.addEventListener('dragstart', (e) => {
@@ -130,11 +182,15 @@ window.ContextPanel = {
                 <span class="drag-handle">⠿</span>
                 <input type="checkbox" ${el.enabled ? 'checked' : ''} onchange="ContextPanel.toggleElement('${el.id}')">
                 <div class="item-content">
-                    <div class="item-label">${el.label}</div>
+                    <div class="item-label">
+                        ${el.label}
+                        <span class="source-badge ${el.source}">${el.source}</span>
+                    </div>
                     <div class="item-preview">${el.content.substring(0, 80) + (el.content.length > 80 ? '...' : '')}</div>
                 </div>
                 <div class="token-badge">${el.token_count} tok</div>
                 <button class="edit-btn" onclick="ContextPanel.editElement('${el.id}')">✏️</button>
+                <button class="edit-btn" style="color: #e63946; font-size: 0.9rem;" onclick="ContextPanel.deleteElement('${el.id}')">❌</button>
             `;
             this.listEl.appendChild(div);
         });

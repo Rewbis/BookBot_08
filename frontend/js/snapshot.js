@@ -1,7 +1,7 @@
 window.Snapshot = {
     async saveProject() {
         const title = document.getElementById('project-title').value;
-        
+
         // Suggest filename
         let filename = "";
         try {
@@ -11,7 +11,7 @@ window.Snapshot = {
         } catch (e) {
             filename = "bookbot_untitled.json";
         }
-        
+
         const finalName = prompt("Save project as:", filename);
         if (!finalName) return;
 
@@ -25,10 +25,10 @@ window.Snapshot = {
             target_chapter_count: parseInt(document.getElementById('setup-chapters').value) || 20,
             phase: "A",
             context_elements: window.ContextPanel.contextElements,
-            chapters: [], // Future
+            chapters: window.ChapterPanel.chapters || [],
             world_dict: {}, // Future
             antagonist_rounds: parseInt(document.getElementById('antagonist-rounds').value) || 1,
-            model_name: "qwen3-14b-abliterated:Q4_K_M",
+            model_name: window.currentModelName || "richardyoung/qwen3-14b-abliterated:Q5_K_M",
             created_at: window.currentProjectCreatedAt || new Date().toISOString(),
             updated_at: new Date().toISOString(),
             snapshot_notes: ""
@@ -37,7 +37,7 @@ window.Snapshot = {
         try {
             const res = await fetch('/api/project/save', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ project: projectData, custom_filename: finalName })
             });
             const data = await res.json();
@@ -52,10 +52,10 @@ window.Snapshot = {
         try {
             const res = await fetch('/api/project/list');
             const files = await res.json();
-            
+
             const listEl = document.getElementById('load-project-list');
             listEl.innerHTML = '';
-            
+
             if (files.length === 0) {
                 listEl.innerHTML = '<p>No saved projects found.</p>';
             } else {
@@ -78,7 +78,7 @@ window.Snapshot = {
         try {
             const res = await fetch('/api/project/load', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ filepath: `projects/${filename}` })
             });
             const project = await res.json();
@@ -93,7 +93,7 @@ window.Snapshot = {
     repopulateUI(project) {
         window.currentProjectId = project.id;
         window.currentProjectCreatedAt = project.created_at;
-        
+
         document.getElementById('project-title').value = project.title;
         document.getElementById('setup-genre').value = project.genre || "";
         document.getElementById('setup-tone').value = project.tone || "";
@@ -101,14 +101,18 @@ window.Snapshot = {
         document.getElementById('setup-words').value = project.target_word_count || 50000;
         document.getElementById('setup-chapters').value = project.target_chapter_count || 20;
         document.getElementById('antagonist-rounds').value = project.antagonist_rounds || 1;
-        
+
         window.ContextPanel.contextElements = project.context_elements || [];
         window.ContextPanel.renderContextPanel();
+
+        if (window.ChapterPanel) {
+            window.ChapterPanel.loadChapters(project.chapters);
+        }
     },
 
     async newProject() {
         if (!confirm("Start new project? Unsaved changes will be lost.")) return;
-        
+
         try {
             const res = await fetch('/api/project/new', { method: 'POST' });
             const project = await res.json();

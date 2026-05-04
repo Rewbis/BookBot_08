@@ -79,7 +79,7 @@ async def new_project():
         chapters=[],
         world_dict={},
         antagonist_rounds=1,
-        model_name="qwen3-14b-abliterated:Q4_K_M",
+        model_name=os.getenv("OLLAMA_MODEL", "richardyoung/qwen3-14b-abliterated:Q5_K_M"),
         created_at=now,
         updated_at=now,
         snapshot_notes=""

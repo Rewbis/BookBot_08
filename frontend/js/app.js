@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 1. Initialize modules
     window.ContextPanel.init();
     window.LLMPanel.init();
+    window.ChapterPanel.init();
 
     // 2. Bind top-level buttons
     document.getElementById('btn-new-project').addEventListener('click', () => window.Snapshot.newProject());
@@ -49,7 +50,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     await checkOllama();
     setInterval(checkOllama, 30000);
 
-    // 5. Initial New Project
+    // 5. Fetch LLM Config
+    try {
+        const configRes = await fetch('/api/llm/config');
+        const config = await configRes.json();
+        window.currentModelName = config.model_name;
+    } catch (e) {
+        console.error("Failed to fetch LLM config", e);
+    }
+
+    // 6. Initial New Project
     try {
         const res = await fetch('/api/project/new', { method: 'POST' });
         const project = await res.json();
