@@ -47,7 +47,7 @@
             <div class="tabs">
                 <button class="tab-btn active" data-tab="tab-a">Phase A: Concept</button>
                 <button class="tab-btn" data-tab="tab-b">Phase B: Outlines</button>
-                <button class="tab-btn disabled" data-tab="tab-c" title="Coming in V2">Phase C: Drafting</button>
+                <button class="tab-btn" data-tab="tab-c">Phase C: Drafting</button>
                 <button class="tab-btn disabled" data-tab="tab-d" title="Coming in V2">Phase D: Export</button>
             </div>
 
@@ -132,7 +132,16 @@
                 </div>
             </div>
             <div class="tab-content" id="tab-c" style="display: none;">
-                <h2>Phase C: Drafting (Coming soon)</h2>
+                <div class="phase-c-header">
+                    <div class="phase-c-controls">
+                        <button id="btn-c-expand-collapse-all" class="btn-secondary">Expand All</button>
+                        <button id="btn-c-bulk-generate" class="btn-primary">Bulk Generate All</button>
+                        <span id="phase-c-status">0 / 0 chapters approved</span>
+                    </div>
+                </div>
+                <div id="chapter-c-cards-container">
+                    <!-- Phase C chapter cards rendered here by chapter_c_panel.js -->
+                </div>
             </div>
             <div class="tab-content" id="tab-d" style="display: none;">
                 <h2>Phase D: Export (Coming soon)</h2>
@@ -167,6 +176,7 @@
     <script src="/static/js/llm_panel.js"></script>
     <script src="/static/js/chapter_panel.js"></script>
     <script src="/static/js/snapshot.js"></script>
+    <script src="/static/js/chapter_c_panel.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 

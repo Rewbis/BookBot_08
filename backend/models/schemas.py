@@ -28,6 +28,13 @@ class Chapter(BaseModel):
     order: int
     status: str
     approved: bool = False
+    actions_draft: str = ""
+    sensory_draft: str = ""
+    dialogue_draft: str = ""
+    style_draft: str = ""
+    critic_output: str = ""
+    polish_draft: str = ""
+    phase_c_status: str = "not_started"
 
     model_config = ConfigDict(populate_by_name=True)
 

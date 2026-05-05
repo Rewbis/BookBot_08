@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.ContextPanel.init();
     window.LLMPanel.init();
     window.ChapterPanel.init();
+    window.ChapterCPanel.init();
 
     // 2. Bind top-level buttons
     document.getElementById('btn-new-project').addEventListener('click', () => window.Snapshot.newProject());
@@ -30,6 +31,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             t.classList.add('active');
             document.getElementById(t.dataset.tab).style.display = 'block';
+            if (t.dataset.tab === 'tab-c') {
+                window.ChapterCPanel.renderAllChapters();
+            }
         });
     });
 

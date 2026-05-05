@@ -299,6 +299,25 @@ async def run_chapter_polish(req: ChapterWriteRequest):
     result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
+@router.post("/chapter-summary")
+async def run_chapter_summary(req: ChapterWriteRequest):
+    sys_prompt = (
+        "You are a precise summariser. Given a completed chapter, write a concise "
+        "summary of 100-150 words covering: the key events that occurred, how each "
+        "main character's situation changed, and the emotional state at the chapter's "
+        "end. This summary will be used as context for writing subsequent chapters — "
+        "be specific about facts, not vague about themes."
+    )
+    user_msg = f"## Chapter {req.chapter_number}: {req.chapter_title}\n{req.current_draft}\n"
+    
+    messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": user_msg}
+    ]
+    
+    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
+    return {"content": result}
+
 @router.get("/health")
 async def health_check():
     is_up = await ollama_service.health_check()

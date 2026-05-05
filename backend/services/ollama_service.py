@@ -50,7 +50,7 @@ class OllamaService:
                 role = "antagonist"
             elif "outliner" in sys_msg_lower:
                 role = "outliner"
-            elif "factual summary" in sys_msg_lower:
+            elif "factual summary" in sys_msg_lower or "precise summariser" in sys_msg_lower:
                 role = "summariser"
             elif "plot and action" in sys_msg_lower:
                 role = "actions"
