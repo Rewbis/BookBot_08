@@ -2,8 +2,6 @@ import os
 import json
 import httpx
 
-import re
-
 from typing import AsyncGenerator, Any
 from backend.utils.logger import log_llm_call
 
@@ -22,7 +20,7 @@ class OllamaService:
         self.model = os.getenv("OLLAMA_MODEL", "richardyoung/qwen3-14b-abliterated:Q5_K_M")
         self.num_ctx = int(os.getenv("OLLAMA_NUM_CTX", "16384"))
 
-    async def generate(self, messages: list[dict], stream: bool = True) -> Any:
+    async def generate(self, messages: list[dict], stream: bool = True, project_title: str = "unknown") -> Any:
         # messages = [
         #   {"role": "system", "content": "You are a creative writing assistant..."},
         #   {"role": "user", "content": "Write a chapter outline for..."}
@@ -42,16 +40,31 @@ class OllamaService:
         role = "unknown"
         if messages and len(messages) > 0:
             sys_msg = messages[0].get("content", "")
-            if "plotter" in sys_msg.lower():
-                role = "plotter"
-            elif "antagonist" in sys_msg.lower():
+            sys_msg_lower = sys_msg.lower()
+            if "plotter" in sys_msg_lower:
+                if "revising" in sys_msg_lower:
+                    role = "plotter-revision"
+                else:
+                    role = "plotter"
+            elif "antagonist" in sys_msg_lower:
                 role = "antagonist"
-            elif "revising" in sys_msg.lower():
-                role = "plotter-revision"
-            elif "outliner" in sys_msg.lower():
+            elif "outliner" in sys_msg_lower:
                 role = "outliner"
-            elif "factual summary" in sys_msg.lower():
+            elif "factual summary" in sys_msg_lower:
                 role = "summariser"
+            elif "plot and action" in sys_msg_lower:
+                role = "actions"
+            elif "sensory detail" in sys_msg_lower:
+                role = "sensory"
+            elif "dialogue writer" in sys_msg_lower:
+                role = "dialogue"
+            elif "prose style editor" in sys_msg_lower:
+                if "final polish" in sys_msg_lower:
+                    role = "polish"
+                else:
+                    role = "style"
+            elif "literary critic" in sys_msg_lower:
+                role = "critic"
         
         async with httpx.AsyncClient(timeout=300.0) as client:
             if stream:
@@ -66,7 +79,7 @@ class OllamaService:
                                     content = data["response"]
                                     full_response += content
                                     yield content
-                    log_llm_call(role, messages, full_response, self.model)
+                    log_llm_call(role, messages, full_response, self.model, project_title)
                 return stream_generator()
             else:
                 response = await client.post(url, json=payload)
@@ -74,7 +87,7 @@ class OllamaService:
                 data = response.json()
                 full_response = data.get("response", "")
                 cleaned = strip_thinking(full_response)
-                log_llm_call(role, messages, cleaned, self.model)
+                log_llm_call(role, messages, cleaned, self.model, project_title)
                 return cleaned
 
     async def health_check(self) -> bool:

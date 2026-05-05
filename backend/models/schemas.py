@@ -27,6 +27,7 @@ class Chapter(BaseModel):
     full_text: str
     order: int
     status: str
+    approved: bool = False
 
     model_config = ConfigDict(populate_by_name=True)
 

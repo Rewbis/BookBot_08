@@ -1,8 +1,9 @@
 import os
 import json
+import re
 from datetime import datetime
 
-def log_llm_call(role: str, messages: list, response: str, model: str):
+def log_llm_call(role: str, messages: list, response: str, model: str, project_title: str = "unknown"):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_data = {
         "timestamp": timestamp,
@@ -15,8 +16,13 @@ def log_llm_call(role: str, messages: list, response: str, model: str):
         "response": response
     }
     
-    log_dir = "logs"
+    sanitised_title = re.sub(r'[^a-zA-Z0-9\s_]', '', project_title).strip().replace(' ', '_').lower()[:40]
+    if not sanitised_title:
+        sanitised_title = "unknown"
+        
+    log_dir = os.path.join("logs", sanitised_title)
     os.makedirs(log_dir, exist_ok=True)
+    
     log_file = os.path.join(log_dir, f"{timestamp}_{role}.json")
     with open(log_file, "w", encoding="utf-8") as f:
         json.dump(log_data, f, indent=2, ensure_ascii=False)

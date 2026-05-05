@@ -22,7 +22,7 @@ window.ChapterPanel = {
 
         this.setupChaptersInput.addEventListener('input', () => {
             const val = parseInt(this.setupChaptersInput.value) || 20;
-            const isEmptyOrPlaceholders = this.chapters.length === 0 || this.chapters.every(c => c.title === "Chapter N" && !c.intention && !c.skeleton);
+            const isEmptyOrPlaceholders = this.chapters.length === 0 || this.chapters.every(c => c.title === `Chapter ${c.number}` && !c.intention && !c.skeleton);
             if (isEmptyOrPlaceholders) {
                 this.autoPopulate(val, true);
             }
@@ -41,7 +41,7 @@ window.ChapterPanel = {
         return {
             id: crypto.randomUUID(),
             number: number,
-            title: "Chapter N",
+            title: `Chapter ${number}`,
             intention: "",
             scene_notes: "",
             skeleton: "",
@@ -54,7 +54,7 @@ window.ChapterPanel = {
     },
 
     autoPopulate(count, silent=false) {
-        if (!silent && this.chapters.some(c => c.intention || c.skeleton || c.title !== "Chapter N")) {
+        if (!silent && this.chapters.some(c => c.intention || c.skeleton || c.title !== `Chapter ${c.number}`)) {
             if (!confirm("This will clear existing chapters. Are you sure?")) return;
         }
         this.chapters = [];

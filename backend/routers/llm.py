@@ -17,12 +17,14 @@ class PlotterRequest(BaseModel):
     system_prompt_override: Optional[str] = None
     role_name: str = "plotter"
     log_label: Optional[str] = None
+    project_title: str = "unknown"
 
 class AntagonistRequest(BaseModel):
     context_elements: List[ContextElementBase]
     plotter_output: str
     system_prompt_override: Optional[str] = None
     log_label: Optional[str] = None
+    project_title: str = "unknown"
 
 class RevisionRequest(BaseModel):
     context_elements: List[ContextElementBase]
@@ -30,6 +32,7 @@ class RevisionRequest(BaseModel):
     antagonist_critique: str
     system_prompt_override: Optional[str] = None
     log_label: Optional[str] = None
+    project_title: str = "unknown"
 
 class PriorSkeleton(BaseModel):
     number: int
@@ -42,6 +45,20 @@ class OutlinerRequest(BaseModel):
     chapter_title: str
     intention: str
     scene_notes: str
+    project_title: str = "unknown"
+
+class ChapterWriteRequest(BaseModel):
+    context_elements: List[ContextElementBase]
+    prior_chapter_summaries: List[dict]
+    preceding_chapter_tail: str
+    chapter_number: int
+    chapter_title: str
+    chapter_skeleton: str
+    current_draft: str
+    critic_feedback: str
+    antagonist_rounds: int = 1
+    target_words_per_chapter: int = 1500
+    project_title: str = "unknown"
 
 def build_user_message(context_elements: List[ContextElementBase]) -> str:
     parts = []
@@ -66,7 +83,7 @@ async def run_plotter(req: PlotterRequest):
         {"role": "user", "content": user_msg}
     ]
     
-    result = await ollama_service.generate(messages, stream=False)
+    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 @router.post("/antagonist")
@@ -84,7 +101,7 @@ async def run_antagonist(req: AntagonistRequest):
         {"role": "user", "content": user_msg}
     ]
     
-    result = await ollama_service.generate(messages, stream=False)
+    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 @router.post("/plotter-revision")
@@ -109,7 +126,7 @@ async def run_revision(req: RevisionRequest):
         {"role": "user", "content": user_msg}
     ]
     
-    result = await ollama_service.generate(messages, stream=False)
+    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 @router.post("/outliner")
@@ -137,7 +154,149 @@ async def run_outliner(req: OutlinerRequest):
         {"role": "user", "content": user_msg}
     ]
     
-    result = await ollama_service.generate(messages, stream=False)
+    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
+    return {"content": result}
+
+@router.post("/chapter-actions")
+async def run_chapter_actions(req: ChapterWriteRequest):
+    sys_prompt = (
+        "You are a narrative writer specialising in plot and action. Given the chapter "
+        "skeleton and context, write the key actions and events of this chapter in full "
+        "prose. Focus on WHAT HAPPENS — the physical events, decisions, and consequences. "
+        "Do not write dialogue yet — use placeholder tags like [DIALOGUE: character says "
+        "something to the effect of X] where dialogue would naturally occur. "
+        "Keep character voices consistent with their established profiles. "
+        f"Write approximately {req.target_words_per_chapter} words."
+    )
+    user_msg = build_user_message(req.context_elements)
+    
+    for summary in req.prior_chapter_summaries:
+        user_msg += f"## Chapter {summary.get('number')} Summary: {summary.get('title')}\n{summary.get('summary')}\n\n"
+        
+    if req.preceding_chapter_tail:
+        user_msg += f"## End of Previous Chapter\n{req.preceding_chapter_tail}\n\n"
+        
+    user_msg += f"## Current Chapter\nChapter {req.chapter_number}: {req.chapter_title}\n\nSkeleton:\n{req.chapter_skeleton}\n"
+    
+    messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": user_msg}
+    ]
+    
+    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
+    return {"content": result}
+
+@router.post("/chapter-sensory")
+async def run_chapter_sensory(req: ChapterWriteRequest):
+    sys_prompt = (
+        "You are a narrative writer specialising in atmosphere, setting and sensory detail. "
+        "Given a draft chapter, enrich it with vivid sensory details, atmosphere, and "
+        "descriptive passages. Add smell, sound, texture, temperature, and visual detail "
+        "where they serve the scene. Do not change plot events or add new ones. "
+        "Do not write dialogue — leave [DIALOGUE] placeholders in place. "
+        "Return the complete enriched chapter text."
+    )
+    user_msg = build_user_message(req.context_elements)
+    user_msg += f"## Chapter Draft\n{req.current_draft}\n"
+    
+    messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": user_msg}
+    ]
+    
+    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
+    return {"content": result}
+
+@router.post("/chapter-dialogue")
+async def run_chapter_dialogue(req: ChapterWriteRequest):
+    sys_prompt = (
+        "You are a dialogue writer. Given a draft chapter with [DIALOGUE] placeholders, "
+        "replace each placeholder with natural, character-appropriate dialogue. "
+        "Each character should speak in their established voice — consider their background, "
+        "education, emotional state, and relationship to the person they are addressing. "
+        "Dialogue should reveal character and advance the scene. "
+        "Do not change any non-dialogue prose. Return the complete chapter text."
+    )
+    user_msg = build_user_message(req.context_elements)
+    user_msg += f"## Chapter Draft\n{req.current_draft}\n"
+    
+    messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": user_msg}
+    ]
+    
+    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
+    return {"content": result}
+
+@router.post("/chapter-style")
+async def run_chapter_style(req: ChapterWriteRequest):
+    sys_prompt = (
+        "You are a prose style editor. Given a draft chapter, edit it for consistency "
+        "of style, voice, and tone as established by the project parameters. "
+        "Ensure vocabulary, sentence length, and register are appropriate for the "
+        "stated audience and genre. Fix any awkward phrasing, repetition, or tonal "
+        "inconsistency. Do not change plot events or dialogue content — only improve "
+        "how things are expressed. Return the complete edited chapter text."
+    )
+    user_msg = build_user_message(req.context_elements)
+    user_msg += f"## Chapter Draft\n{req.current_draft}\n"
+    
+    messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": user_msg}
+    ]
+    
+    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
+    return {"content": result}
+
+@router.post("/chapter-critic")
+async def run_chapter_critic(req: ChapterWriteRequest):
+    sys_prompt = (
+        "You are a rigorous literary critic and editor. Given a completed chapter draft, "
+        "identify specific weaknesses: plot inconsistencies, character voice violations, "
+        "pacing issues, unresolved setup, tonal mismatches with the project, "
+        "missing emotional beats, or prose quality issues. "
+        "Be specific — quote the problematic passage and explain the issue. "
+        "Be constructive — suggest what should change and why. "
+        "List your critiques clearly and concisely."
+    )
+    user_msg = build_user_message(req.context_elements)
+    for summary in req.prior_chapter_summaries:
+        user_msg += f"## Chapter {summary.get('number')} Summary: {summary.get('title')}\n{summary.get('summary')}\n\n"
+    
+    user_msg += f"## Chapter Draft\n{req.current_draft}\n"
+    
+    if req.critic_feedback:
+        user_msg += f"## Previous Critic Feedback\n{req.critic_feedback}\nNote: assess whether previous issues have been addressed.\n"
+        
+    messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": user_msg}
+    ]
+    
+    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
+    return {"content": result}
+
+@router.post("/chapter-polish")
+async def run_chapter_polish(req: ChapterWriteRequest):
+    sys_prompt = (
+        "You are a prose style editor performing a final polish pass. "
+        "Given a chapter draft and specific critic feedback, address the valid criticisms "
+        "and improve the text accordingly. Do not mention the critique process in your "
+        "output — simply return an improved version of the chapter. "
+        "Preserve all plot events, character voices, and dialogue unless the critic "
+        "specifically flagged them as wrong."
+    )
+    user_msg = build_user_message(req.context_elements)
+    user_msg += f"## Chapter Draft\n{req.current_draft}\n"
+    user_msg += f"## Critic Feedback\n{req.critic_feedback}\n"
+    
+    messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": user_msg}
+    ]
+    
+    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 @router.get("/health")
