@@ -32,10 +32,6 @@ window.ChapterCPanel = {
         return Math.round(words / chapters);
     },
 
-    getAntagonistRounds() {
-        return parseInt(document.getElementById('antagonist-rounds').value) || 1;
-    },
-
     buildSharedContext(ch) {
         const chapters = window.ChapterPanel.chapters;
         const context_elements = window.ContextPanel.exportElementsForLLM();
@@ -70,13 +66,10 @@ window.ChapterCPanel = {
     },
 
     getPassStatus(ch) {
-        // Returns which passes are complete for progress pills
-        const passes = ['actions', 'sensory', 'dialogue', 'style', 'critic', 'polish'];
+        const passes = ['draft', 'enrich', 'critic', 'polish'];
         const draftMap = {
-            actions: ch.actions_draft,
-            sensory: ch.sensory_draft,
-            dialogue: ch.dialogue_draft,
-            style: ch.style_draft,
+            draft: ch.draft_text,
+            enrich: ch.enrich_draft,
             critic: ch.critic_output,
             polish: ch.polish_draft
         };
@@ -103,8 +96,7 @@ window.ChapterCPanel = {
         if (ch.phase_c_status === 'approved') statusIcon = '✅';
         else if (ch.phase_c_status && ch.phase_c_status !== 'not_started') statusIcon = '⚙️';
 
-        const latestDraft = ch.full_text || ch.polish_draft || ch.style_draft ||
-                            ch.dialogue_draft || ch.sensory_draft || ch.actions_draft || '';
+        const latestDraft = ch.full_text || ch.polish_draft || ch.enrich_draft || ch.draft_text || '';
         const wordCount = this.countWords(latestDraft);
 
         const pillsHtml = passes.map(p =>
@@ -161,9 +153,6 @@ window.ChapterCPanel = {
                             Unapprove
                         </button>`
                     }
-                </div>
-                <div style="font-size: 0.8rem; color: #888; margin-bottom: 8px;">
-                    Critic rounds: ${this.getAntagonistRounds()} (set in Phase A)
                 </div>
             `;
             body.appendChild(genSection);
@@ -251,59 +240,55 @@ window.ChapterCPanel = {
             chapter_skeleton: ch.skeleton || '',
             current_draft: '',
             critic_feedback: '',
-            antagonist_rounds: this.getAntagonistRounds(),
+            antagonist_rounds: 1,
             target_words_per_chapter: this.getTargetWordsPerChapter(),
             project_title: this.getProjectTitle()
         };
 
         try {
-            // Pass 1: Actions
-            this.updateStatus('Generating actions...');
-            let res = await fetch('/api/llm/chapter-actions', {
+            // Pass 1: Draft (actions + sensory atmosphere + dialogue placeholders)
+            this.updateStatus('Writing draft...');
+            let res = await fetch('/api/llm/chapter-draft', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(basePayload)
             });
             let data = await res.json();
-            ch.actions_draft = data.content;
-            ch.phase_c_status = 'actions';
+            ch.draft_text = data.content;
+            ch.phase_c_status = 'draft';
             this.renderAllChapters();
 
-            // Pass 2: Sensory
-            this.updateStatus('Adding sensory detail...');
-            res = await fetch('/api/llm/chapter-sensory', {
+            // Pass 2: Enrich (dialogue + sensory layering + style + De-AI)
+            this.updateStatus('Enriching draft...');
+            res = await fetch('/api/llm/chapter-enrich', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({...basePayload, current_draft: ch.actions_draft})
+                body: JSON.stringify({...basePayload, current_draft: ch.draft_text})
             });
             data = await res.json();
-            ch.sensory_draft = data.content;
-            ch.phase_c_status = 'sensory';
+            ch.enrich_draft = data.content;
+            ch.phase_c_status = 'enrich';
             this.renderAllChapters();
 
-            // Pass 3: Dialogue
-            this.updateStatus('Writing dialogue...');
-            res = await fetch('/api/llm/chapter-dialogue', {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({...basePayload, current_draft: ch.sensory_draft})
-            });
-            data = await res.json();
-            ch.dialogue_draft = data.content;
-            ch.phase_c_status = 'dialogue';
-            this.renderAllChapters();
+            // Summarise enrich draft (compact reference for downstream context)
+            this.updateStatus('Summarising enriched draft...');
+            try {
+                const enrichSumRes = await fetch('/api/llm/chapter-summarise-enrich', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chapter_number: ch.number,
+                        chapter_title: ch.title,
+                        enrich_draft: ch.enrich_draft,
+                        project_title: this.getProjectTitle()
+                    })
+                });
+                const enrichSumData = await enrichSumRes.json();
+                ch.enrich_draft_summary = enrichSumData.content;
+            } catch (e) {
+                console.warn('Enrich summary failed (non-fatal):', e);
+            }
 
-            // Pass 4: Style
-            this.updateStatus('Style editing...');
-            res = await fetch('/api/llm/chapter-style', {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({...basePayload, current_draft: ch.dialogue_draft})
-            });
-            data = await res.json();
-            ch.style_draft = data.content;
-            ch.phase_c_status = 'style';
-            this.renderAllChapters();
-
-            // Critic + Polish loop
-            let currentDraft = ch.style_draft;
-            const rounds = this.getAntagonistRounds();
+            // Critic + Polish (1 pass — re-run manually via Re-run Critic)
+            let currentDraft = ch.enrich_draft;
+            const rounds = 1;
             for (let i = 0; i < rounds; i++) {
                 // Critic
                 this.updateStatus(`Critic pass ${i + 1} of ${rounds}...`);
@@ -363,6 +348,7 @@ window.ChapterCPanel = {
             document.body.style.cursor = 'default';
             this.updateStatus('');
             this.renderAllChapters();
+            this.notifyUsageUpdate();
         }
     },
 
@@ -376,7 +362,7 @@ window.ChapterCPanel = {
         const { context_elements, prior_chapter_summaries, preceding_chapter_tail } =
             this.buildSharedContext(ch);
 
-        const currentDraft = ch.polish_draft || ch.style_draft || ch.full_text || '';
+        const currentDraft = ch.polish_draft || ch.enrich_draft || ch.full_text || '';
 
         const basePayload = {
             context_elements,
@@ -387,7 +373,7 @@ window.ChapterCPanel = {
             chapter_skeleton: ch.skeleton || '',
             current_draft: currentDraft,
             critic_feedback: ch.critic_output || '',
-            antagonist_rounds: this.getAntagonistRounds(),
+            antagonist_rounds: 1,
             target_words_per_chapter: this.getTargetWordsPerChapter(),
             project_title: this.getProjectTitle()
         };
@@ -426,7 +412,7 @@ window.ChapterCPanel = {
         const ch = window.ChapterPanel.chapters.find(c => c.id === chapterId);
         if (!ch) return;
 
-        const textToSummarise = ch.full_text || ch.polish_draft || ch.style_draft || '';
+        const textToSummarise = ch.full_text || ch.polish_draft || ch.enrich_draft || '';
         if (!textToSummarise) return;
 
         try {
@@ -514,6 +500,10 @@ window.ChapterCPanel = {
         this.isBulkGenerating = false;
         this.btnBulkGenerate.disabled = false;
         this.btnBulkGenerate.innerText = 'Bulk Generate All';
+    },
+
+    notifyUsageUpdate() {
+        window.dispatchEvent(new Event('llm:complete'));
     },
 
     updateStatus(msg) {

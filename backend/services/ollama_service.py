@@ -4,6 +4,7 @@ import httpx
 
 from typing import AsyncGenerator, Any
 from backend.utils.logger import log_llm_call
+from backend.utils.usage_tracker import tracker as usage_tracker
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -21,16 +22,10 @@ class OllamaService:
         self.num_ctx = int(os.getenv("OLLAMA_NUM_CTX", "16384"))
 
     async def generate(self, messages: list[dict], stream: bool = True, project_title: str = "unknown") -> Any:
-        # messages = [
-        #   {"role": "system", "content": "You are a creative writing assistant..."},
-        #   {"role": "user", "content": "Write a chapter outline for..."}
-        # ]
-        url = f"{self.base_url}/api/generate"
-        system_content = next((m["content"] for m in messages if m["role"] == "system"), "")
-        user_content = next((m["content"] for m in messages if m["role"] == "user"), "")
+        url = f"{self.base_url}/api/chat"
         payload = {
             "model": self.model,
-            "prompt": f"{system_content}\n\n{user_content}",
+            "messages": messages,
             "stream": stream,
             "options": {
                 "num_ctx": self.num_ctx
@@ -52,17 +47,12 @@ class OllamaService:
                 role = "outliner"
             elif "factual summary" in sys_msg_lower or "precise summariser" in sys_msg_lower:
                 role = "summariser"
-            elif "plot and action" in sys_msg_lower:
-                role = "actions"
-            elif "sensory detail" in sys_msg_lower:
-                role = "sensory"
-            elif "dialogue writer" in sys_msg_lower:
-                role = "dialogue"
-            elif "prose style editor" in sys_msg_lower:
-                if "final polish" in sys_msg_lower:
-                    role = "polish"
-                else:
-                    role = "style"
+            elif "narrative fiction writer" in sys_msg_lower:
+                role = "draft"
+            elif "enrichment pass" in sys_msg_lower:
+                role = "enrich"
+            elif "final polish" in sys_msg_lower:
+                role = "polish"
             elif "literary critic" in sys_msg_lower:
                 role = "critic"
         
@@ -70,23 +60,44 @@ class OllamaService:
             if stream:
                 async def stream_generator():
                     full_response = ""
+                    past_thinking = False
+                    prompt_tokens = 0
+                    eval_tokens = 0
                     async with client.stream("POST", url, json=payload) as response:
                         response.raise_for_status()
                         async for chunk in response.aiter_lines():
                             if chunk:
                                 data = json.loads(chunk)
-                                if "response" in data:
-                                    content = data["response"]
+                                content = data.get("message", {}).get("content", "")
+                                if content:
                                     full_response += content
-                                    yield content
-                    log_llm_call(role, messages, full_response, self.model, project_title)
+                                    if not past_thinking:
+                                        if "</think>" in full_response:
+                                            past_thinking = True
+                                            tail = full_response.split("</think>", 1)[1]
+                                            if tail:
+                                                yield tail
+                                    else:
+                                        yield content
+                                if data.get("done"):
+                                    prompt_tokens = data.get("prompt_eval_count", 0)
+                                    eval_tokens = data.get("eval_count", 0)
+                    if not past_thinking:
+                        yield full_response
+                    usage_tracker.record("local", prompt_tokens, eval_tokens)
+                    log_llm_call(role, messages, strip_thinking(full_response), self.model, project_title)
                 return stream_generator()
             else:
                 response = await client.post(url, json=payload)
                 response.raise_for_status()
                 data = response.json()
-                full_response = data.get("response", "")
+                full_response = data.get("message", {}).get("content", "")
                 cleaned = strip_thinking(full_response)
+                usage_tracker.record(
+                    "local",
+                    data.get("prompt_eval_count", 0),
+                    data.get("eval_count", 0),
+                )
                 log_llm_call(role, messages, cleaned, self.model, project_title)
                 return cleaned
 

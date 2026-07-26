@@ -1,6 +1,6 @@
-# BookBot_08 — Roadmap & IDE Instructions
-*For use in Google Project IDX (VS Code + Gemini assistant panel)*
-*Generated: 2026-05-04*
+# BookBot_08 — Roadmap & Architecture Reference
+*Developed in Claude Code (Windows, PowerShell)*
+*Originally generated: 2026-05-04 — last updated: 2026-07-25*
 
 ---
 
@@ -8,9 +8,7 @@
 
 This document has two layers:
 - **Roadmap** — phased plan, what gets built when, and why
-- **IDE Instructions** — paste these blocks directly into the Gemini assistant panel in IDX, or follow manually in the terminal
-
-When pasting into Gemini panel: paste one labelled block at a time. Wait for it to complete before moving to the next. If Gemini asks a clarifying question, answer it and continue.
+- **Architecture reference** — describes the current structure and conventions
 
 ---
 
@@ -22,32 +20,41 @@ BookBot_08/
 │   ├── main.py              # FastAPI app entry point
 │   ├── routers/
 │   │   ├── project.py       # save/load JSON snapshots
-│   │   ├── llm.py           # all Ollama API calls
-│   │   └── tokens.py        # token counting endpoints
+│   │   ├── llm.py           # LLM call endpoints (all agents — see Agent Pipeline below)
+│   │   ├── tokens.py        # token counting + session usage endpoints
+│   │   └── architecture.py  # serves docs/architecture_matrix.yaml read-only
 │   ├── models/
-│   │   └── schemas.py       # Pydantic data models (book, chapter, element, etc.)
+│   │   └── schemas.py       # Pydantic data models (BookProject, Chapter, ContextElement, etc.)
 │   ├── services/
-│   │   ├── ollama_service.py   # wraps Ollama HTTP API
-│   │   ├── tavily_service.py   # wraps Tavily research API
-│   │   ├── token_service.py    # counts tokens per element
-│   │   └── epub_service.py     # EPUB generation (V4)
+│   │   ├── ollama_service.py   # wraps Ollama /api/chat (local model)
+│   │   ├── claude_service.py   # wraps Anthropic API (AsyncAnthropic, claude-sonnet-5)
+│   │   └── token_service.py    # counts tokens per element (tiktoken cl100k approx)
 │   └── utils/
-│       └── snapshot.py      # JSON save/load helpers
+│       ├── logger.py        # per-call JSON logs to /logs/
+│       ├── snapshot.py      # JSON save/load helpers
+│       └── usage_tracker.py # session token + cost accumulator (Claude vs local)
 ├── frontend/
 │   ├── index.html           # single page app shell
 │   ├── css/
 │   │   └── style.css
 │   └── js/
-│       ├── app.js           # main state manager
-│       ├── context_panel.js # draggable/toggleable context element list
-│       ├── llm_panel.js     # generation controls, streaming output
-│       └── snapshot.js      # save/load UI
+│       ├── app.js             # init, tab switching, usage tracker polling, resizable panels
+│       ├── context_panel.js   # draggable/toggleable context element list
+│       ├── dump_panel.js      # creative dump parsing, slot editing, planted clues
+│       ├── llm_panel.js       # Phase A loop: Plotter → Antagonist → Revision → Continuity
+│       ├── chapter_panel.js   # Phase B chapter outline UI
+│       ├── chapter_c_panel.js # Phase C 3-pass writing pipeline
+│       ├── architecture_panel.js # Architecture tab: CRUD matrix + model routing table
+│       └── snapshot.js        # save/load UI
+├── docs/
+│   ├── architecture_matrix.yaml  # hand-edited CRUD matrix and model routing table
+│   └── BookBot_08_Roadmap_and_Instructions.md  # this file
 ├── projects/                # JSON snapshot files live here
 ├── logs/                    # per-call LLM input/output logs
-├── requirements.txt
-├── .env                     # API keys (Tavily, etc.) — never commit this
+├── requirements.txt         # includes pyyaml for YAML loading
+├── .env                     # API keys — never commit this
 ├── .env.example
-└── start.bat                # Windows one-click start script
+└── start.bat                # Windows one-click start; prints checklist (start Ollama first)
 ```
 
 **Key principles baked into the architecture:**
@@ -56,27 +63,145 @@ BookBot_08/
 - All LLM state held in Python dicts/JSON — no LangChain, no abstraction
 - Every LLM call logs full input + output to `/logs/` for auditability
 - Frontend is plain HTML/CSS/JS — no build step, no framework, runs in any browser
+- Claude Sonnet 5 (`claude-sonnet-5`) via `AsyncAnthropic` for all frontier calls
+  - Sonnet 5 may return `ThinkingBlock` objects before `TextBlock` — always extract text with
+    `next(b.text for b in response.content if b.type == "text")`, not `content[0].text`
+- Local Ollama model (`qwen3-14b-abliterated`) used only for `[EXPLICIT: ...]` placeholder fill
+- `context_elements` is human-curated; agents READ it but never write to it directly
+- `planted_clues[].status` is never deleted by agents — set to `"cut"` with notes
+- `docs/architecture_matrix.yaml` is hand-edited; the Architecture tab loads it read-only
+- Left/right panel split is resizable via drag divider; width saved to `localStorage`
+
+---
+
+## AGENT PIPELINE
+
+### Phase A — Book Concept Loop
+
+```
+Parse & Structure  →  [Human slot review]
+        ↓
+     Plotter  →  Antagonist  →  Plotter Revision  →  Continuity Agent
+                                        ↑_____________________________|
+                                        (Pass Back if issues found)
+                                                     |
+                                              Approve → Phase B
+                                                     |
+                                         Summarise Premise (auto-add to context)
+```
+
+**Endpoints (`POST /api/llm/...`):**
+
+| Endpoint | Input | Output | Notes |
+|---|---|---|---|
+| `/parse-dump` | `creative_dump`, `project_title` | `{role_constraints, premise, characters, world_notes, planted_clues}` | Structured JSON from raw brain-dump |
+| `/plotter` | `context_elements`, `project_title` | `{content}` | World dict + plot overview |
+| `/antagonist` | `context_elements`, `plotter_output`, `project_title` | `{content}` | Critique list |
+| `/plotter-revision` | `context_elements`, `plotter_output`, `antagonist_critique`, `project_title` | `{content}` | Revised plan; `antagonist_critique` may include appended continuity issues on re-run |
+| `/continuity` | `context_elements`, `plotter_revision_output`, `planted_clues`, `continuity_issues`, `project_title` | `{verdict, summary, issues, clue_updates}` | JSON response (fences stripped); `verdict` is `"approve"` or `"revise"` |
+| `/summarise-premise` | `context_elements`, `premise`, `project_title` | `{content}` | 200–300 word compressed premise; auto-added to context as `premise_summary` element |
+
+**Continuity Agent response schema:**
+```json
+{
+  "verdict": "approve | revise",
+  "summary": "one-paragraph assessment",
+  "issues": ["issue text", "..."],
+  "clue_updates": [
+    {"id": "clue-uuid", "status": "planted | paid_off | cut", "notes": "reason"}
+  ]
+}
+```
+
+**Pass Back loop:** "Pass Back to Plotter" extracts `issues` from the continuity response and calls `runRevision(issueText)` — Plotter Revision re-runs with the continuity issues appended to the antagonist critique. No new endpoint needed.
+
+### Phase B — Chapter Outlines
+
+| Endpoint | Input | Output |
+|---|---|---|
+| `/outliner` | `context_elements`, `chapters[]`, `premise_summary`, `project_title` | `{content}` streaming |
+
+### Phase C — 3-Pass Chapter Writing
+
+```
+Drafter (Pass 1)  →  [Local model fills EXPLICIT placeholders]
+        ↓
+  Enricher (Pass 2)  →  Summariser (post-enrich)
+        ↓
+  Critic (Pass 3a)  →  Polish (Pass 3b)  →  Summariser (post-polish)
+```
+
+| Endpoint | Input | Output | Notes |
+|---|---|---|---|
+| `/chapter-draft` | `context_elements`, `chapter`, `prev_chapter_summaries`, `prev_chapter_tail`, `project_title` | streaming | Pass 1 prose with `[DIALOGUE: ...]` and `[EXPLICIT: ...]` placeholders |
+| `/local-explicit` | `draft_text`, `project_title` | `{content, has_explicit}` | Ollama only; fills `[EXPLICIT: ...]` markers |
+| `/chapter-enrich` | `context_elements`, `chapter`, `draft_text`, `project_title` | streaming | Fills dialogue, layers sensory detail, applies De-AI rules |
+| `/chapter-summarise-enrich` | `chapter_number`, `chapter_title`, `enrich_draft`, `project_title` | `{content}` | 80–120 word summary of enrich pass; stored as `chapter.enrich_draft_summary` |
+| `/chapter-critic` | `context_elements`, `chapter`, `enrich_draft`, `project_title` | streaming | Literary critique pass |
+| `/chapter-polish` | `context_elements`, `chapter`, `enrich_draft`, `critic_output`, `project_title` | streaming | Final prose addressing critique |
+| `/chapter-summary` | `chapter_number`, `chapter_title`, `polish_draft`, `project_title` | `{content}` | 100–150 word factual chapter summary for subsequent chapter context |
+
+---
+
+## SCHEMA — KEY FIELDS
+
+**`BookProject`** (project-level, in `schemas.py`):
+- `premise_summary: str` — compressed premise from Summariser; read by Outliner and Drafter
+- `plotter_output: str` — persisted Plotter output
+- `antagonist_output: str` — persisted Antagonist critique
+- `plotter_revision_output: str` — persisted Revision output
+- `continuity_output: str` — persisted Continuity Agent JSON string
+
+**`Chapter`** (per-chapter):
+- `draft_text: str` — Pass 1 (Drafter + local explicit fill)
+- `enrich_draft: str` — Pass 2 (Enricher)
+- `enrich_draft_summary: str` — compressed enrich_draft for context economy
+- `critic_output: str` — Pass 3a critique
+- `polish_draft: str` — Pass 3b final prose
+- `summary: str` — 100–150 word post-polish summary
+- `has_explicit_content: bool` — true if local model ran
+- `explicit_review_notes: str` — Critic notes on explicit passages
+
+---
+
+## ARCHITECTURE DOCUMENTATION TAB
+
+The Architecture tab in the UI (`GET /api/architecture`) serves `docs/architecture_matrix.yaml` read-only.
+
+This YAML file contains two tables, rendered in the frontend by `architecture_panel.js`:
+
+1. **CRUD Matrix** — shows which agents Create / Read / Update / Delete each field.  
+   - First column is frozen (sticky) during horizontal scroll.
+   - Description column wraps text.
+   - Sticky bottom scrollbar via mirrored ghost div + bidirectional scroll sync.
+
+2. **Model Routing Table** — shows which LLM (Claude API or local Ollama) each agent uses per pipeline phase.
+
+**To update the tables:** edit `docs/architecture_matrix.yaml` directly and reload the Architecture tab. The file is never written at runtime.
 
 ---
 
 ## PHASE ROADMAP
 
-### MVP — Phase A (Book Concept → Plotter/Antagonist Loop)
-**Goal:** Working end-to-end loop for a single book concept. User can define a book, manage context elements explicitly, trigger LLM generation, run antagonist critique, and save/load a snapshot.
+### Phase A — Book Concept Loop ✅ COMPLETE
+**Goal:** Working end-to-end loop for a single book concept.
 
-Features:
-- Project setup (title, genre, tone, target length, audience)
-- Fixed plot points input (ordered list, add/remove/reorder)
-- Context panel: each element has label, content preview, token count, toggle checkbox, drag handle
-- Running total token counter for what will be sent to LLM
-- Plotter LLM call → streaming output to UI
-- Antagonist LLM call (N rounds, default 1, re-triggerable)
-- Human-editable text boxes with explicit "Confirm Edit" button
-- Save snapshot (suggested filename, editable) → pretty-printed JSON in `/projects/`
-- Load snapshot from file picker
-- Full per-call logging to `/logs/`
+Features built:
+- **Creative Dump** — paste raw ideas; "Parse & Structure" agent fills structured slots (role constraints, premise, characters, world notes, planted clues)
+- **Slot review** — human reviews and edits each parsed slot; "Approve → Context" promotes a slot into the context panel
+- **Planted Clues** — discrete foreshadowing items with label, description, status, and arc reference; Continuity Agent updates status
+- **Context panel** — draggable, toggleable elements with token counts and running total
+- **Phase A loop:** Generate Plot → Run Antagonist → Run Plotter Revision → Run Continuity Agent
+  - Continuity Agent returns structured JSON: verdict (approve/revise), issues, clue status updates
+  - "Pass Back to Plotter": re-runs Plotter Revision with continuity issues appended
+  - "Approve → Phase B": locks plan, reveals Summarise Premise
+- **Summarise Premise** — 200–300 word compressed premise auto-added to context; used by Outliner and Drafter
+- **Snapshot save/load** — persists all Phase A loop outputs (plotter, antagonist, revision, continuity JSON, premise summary)
+- **Architecture tab** — read-only CRUD matrix and model routing table rendered from `docs/architecture_matrix.yaml`
+- **Resizable panels** — drag vertical divider; split saved to localStorage
+- **Session cost tracker** — Claude API token usage and cost shown in sidebar
 
-**Done when:** Trump satire example from the brief can be run start to finish.
+**Done when:** Full loop from creative dump through Continuity Agent approval and premise summary runs without error.
 
 ---
 
@@ -90,21 +215,34 @@ Features:
 
 ---
 
-### V3 — Phase C (Full Chapter Writing)
-- Iterative copywriting loop per chapter:
-  1. Key actions
-  2. Sensory/descriptive details
-  3. Dialogue (per-character voice awareness)
-  4. Style editing pass
-- Antagonist editor → narrative LLM loop (same N-round mechanic as Phase A)
-- Previous chapters passed as LLM-generated summaries (not full text) to stay within 32k context
-- Upcoming chapter intention passed as forward context
-- Bulk chapter generation option (loop with human approval gate per chapter)
-- Final draft saved per chapter + assembled full text
+### Phase C — Full Chapter Writing (in progress)
+3-pass pipeline per chapter (built; UI integration ongoing):
+
+1. **Draft (Pass 1)** — full prose with sensory atmosphere, events, `[DIALOGUE: ...]` and `[EXPLICIT: ...]` placeholders. Local model fills `[EXPLICIT: ...]` and sets `has_explicit_content` flag.
+2. **Enrich (Pass 2)** — fills dialogue, layers sensory detail, applies De-AI rules (scrubs LLM hallmarks: banned words, em-dash overuse, hedging language, formulaic transitions). Summariser runs after enrich: 80–120 word summary stored as `enrich_draft_summary`.
+3. **Critic → Polish (Pass 3)** — literary critique (Pass 3a) then polish addressing the critique (Pass 3b). Re-runnable. Summariser runs after polish: 100–150 word factual summary stored as `chapter.summary`.
+
+Previous chapters passed as summaries (not full text). Last 500 words of preceding chapter passed as tail context. Bulk generation option with per-chapter approval gate.
+
+---
+
+### Hybrid Model Architecture
+BookBot uses two LLM backends:
+
+| Role | Model | Used for |
+|------|-------|----------|
+| **Frontier** | `claude-sonnet-5` (Anthropic API) | All agents except explicit content fill |
+| **Local** | `qwen3-14b-abliterated` via Ollama | `[EXPLICIT: ...]` placeholder fill only |
+
+Cost is tracked per-model in the sidebar: sent/received tokens and session cost in USD for Claude; free for local.  
+Set `ANTHROPIC_API_KEY` in `.env` to enable the Claude path. Ollama must be running before the server starts — `start.bat` prints a reminder checklist.
+
+**Important implementation note:** Claude Sonnet 5 uses extended thinking by default and returns `ThinkingBlock` objects before `TextBlock` in `response.content`. Never index `content[0].text` — always filter: `next(b.text for b in response.content if b.type == "text")`.
 
 ---
 
 ### V4 — Phase D+E (Marketing, Illustrations, EPUB)
+*(tavily_service.py and epub_service.py are planned but not yet built)*
 - Visualiser LLM: generates illustration prompts per chapter (key scene from chapter start)
 - Cover blurb generation
 - Illustration prompt display (copy to clipboard for Gemini/etc.)
@@ -158,7 +296,7 @@ Create a requirements.txt file in BookBot_08 with these contents:
 Create a .env.example file with:
   TAVILY_API_KEY=your_key_here
   OLLAMA_BASE_URL=http://localhost:11434
-  OLLAMA_MODEL=qwen3-14b-abliterated:Q4_K_M
+  OLLAMA_MODEL=richardyoung/qwen3-14b-abliterated:Q5_K_M
 
 Create a .env file with the same contents (user will fill in Tavily key).
 
@@ -286,6 +424,16 @@ POST /api/tokens/count
 POST /api/tokens/elements
    - Accepts: list of context element objects
    - Returns: same list with token_count populated + {"total": 456}
+
+GET /api/tokens/usage
+   - Returns session-level token and cost summary:
+     {"claude": {"input_tokens": N, "output_tokens": N, "cost_usd": N},
+      "local":  {"input_tokens": N, "output_tokens": N, "cost_usd": 0},
+      "total_cost_usd": N}
+
+POST /api/tokens/usage/reset
+   - Resets session counters to zero
+   - Returns: {"status": "reset"}
 ```
 
 ---
@@ -644,7 +792,7 @@ Design requirements:
 ```
 Create BookBot_08/backend/utils/logger.py
 
-Function: log_llm_call(role: str, messages: list, response: str, model: str)
+Function: log_llm_call(role: str, messages: list, response: str, model: str, project_title: str)
   - Creates a dict with: timestamp, role, model, message_count, total_input_chars, total_output_chars, messages, response
   - Writes to /logs/{YYYYMMDD_HHMMSS}_{role}.json as pretty-printed JSON
   - Also appends a one-line summary to /logs/session.log: "{timestamp} | {role} | {len(response)} chars"
@@ -708,24 +856,14 @@ Once running, follow this user journey to validate the MVP:
 
 ---
 
-## KNOWN LIMITATIONS AT MVP
+## KNOWN LIMITATIONS / NEXT STEPS
 
-- Phase B, C, D tabs are placeholders only
-- Tavily research button wired up but basic (returns raw result as context element)
-- No per-character voice profiles yet (V3 feature)
-- EPUB generation not built (V4)
-- No illustration workflow (V4)
-- Token counter uses cl100k approximation — Qwen3 may differ by ~5-10%
-
----
-
-## V2 STARTING POINT (for next session)
-
-When MVP is stable, begin V2 with this prompt to Gemini:
-
-> "We are building BookBot_08, a book authoring tool. MVP (Phase A) is complete. Now build Phase B: the chapter outline tab. Reference the existing schemas.py for Chapter model. Build the chapter list UI with add/remove/reorder, per-chapter intention and notes text boxes, and the outliner LLM endpoint that takes approved Phase A context elements plus chapter intentions and returns a full book skeleton."
+- Phase D (marketing, illustrations, EPUB) not built
+- Tavily research integration not wired into Parse & Structure flow
+- No per-character voice profiles (future Phase C enhancement)
+- Token counter uses cl100k approximation — Qwen3/Claude counts may differ by ~5-10%
+- No git repo initialised yet (all files tracked locally only)
 
 ---
 
 *End of BookBot_08 Roadmap & Instructions*
-*Next version: BookBot_09 or increment minor version per phase*

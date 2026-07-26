@@ -4,5 +4,7 @@ python-dotenv
 httpx
 pydantic
 tiktoken
+anthropic
 tavily-python
 ebooklib
+pyyaml

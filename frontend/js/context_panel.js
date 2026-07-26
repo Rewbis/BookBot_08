@@ -201,13 +201,14 @@ window.ContextPanel = {
         const total = this.contextElements.filter(e => e.enabled).reduce((sum, e) => sum + e.token_count, 0);
         this.tokenCountEl.innerText = total;
         
-        let pct = (total / 32000) * 100;
+        const CTX_LIMIT = 16000;
+        let pct = (total / CTX_LIMIT) * 100;
         if (pct > 100) pct = 100;
         this.tokenBarEl.style.width = pct + '%';
-        
+
         this.tokenBarEl.className = 'token-bar-fill';
-        if (total < 20000) this.tokenBarEl.classList.add('green');
-        else if (total < 28000) this.tokenBarEl.classList.add('amber');
+        if (total < 10000) this.tokenBarEl.classList.add('green');
+        else if (total < 14000) this.tokenBarEl.classList.add('amber');
         else this.tokenBarEl.classList.add('red');
     },
 

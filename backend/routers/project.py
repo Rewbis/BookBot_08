@@ -69,18 +69,12 @@ async def new_project():
     return BookProject(
         id=str(uuid.uuid4()),
         title="New Project",
-        genre="",
-        tone="",
-        audience="",
         target_word_count=50000,
         target_chapter_count=20,
         phase="A",
         context_elements=[],
         chapters=[],
-        world_dict={},
-        antagonist_rounds=1,
-        model_name=os.getenv("OLLAMA_MODEL", "richardyoung/qwen3-14b-abliterated:Q5_K_M"),
+        model_name=os.getenv("CLAUDE_MODEL", "claude-sonnet-5"),
         created_at=now,
         updated_at=now,
-        snapshot_notes=""
     )

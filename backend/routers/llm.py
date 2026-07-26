@@ -1,12 +1,16 @@
 import os
+import re
+import json
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 
 from backend.services.ollama_service import OllamaService
+from backend.services.claude_service import ClaudeService
 
 router = APIRouter(prefix="/api/llm", tags=["llm"])
 ollama_service = OllamaService()
+claude_service = ClaudeService()
 
 class ContextElementBase(BaseModel):
     label: str
@@ -47,6 +51,15 @@ class OutlinerRequest(BaseModel):
     scene_notes: str
     project_title: str = "unknown"
 
+class ChapterPlanRequest(BaseModel):
+    context_elements: List[ContextElementBase]
+    prior_skeletons: List[PriorSkeleton]
+    chapter_number: int
+    chapter_title: str = ""   # may be empty — generate if so
+    intention: str = ""
+    scene_notes: str = ""
+    project_title: str = "unknown"
+
 class ChapterWriteRequest(BaseModel):
     context_elements: List[ContextElementBase]
     prior_chapter_summaries: List[dict]
@@ -56,8 +69,29 @@ class ChapterWriteRequest(BaseModel):
     chapter_skeleton: str
     current_draft: str
     critic_feedback: str
-    antagonist_rounds: int = 1
     target_words_per_chapter: int = 1500
+    project_title: str = "unknown"
+
+class ParseDumpRequest(BaseModel):
+    dump_text: str
+    project_title: str = "unknown"
+
+class ContinuityRequest(BaseModel):
+    context_elements: List[ContextElementBase]
+    plotter_revision_output: str
+    planted_clues: List[dict] = []
+    continuity_issues: str = ""   # non-empty when re-running after a previous revise verdict
+    project_title: str = "unknown"
+
+class SummarisePremiseRequest(BaseModel):
+    context_elements: List[ContextElementBase]
+    premise: str
+    project_title: str = "unknown"
+
+class SummariseEnrichRequest(BaseModel):
+    chapter_number: int
+    chapter_title: str
+    enrich_draft: str
     project_title: str = "unknown"
 
 def build_user_message(context_elements: List[ContextElementBase]) -> str:
@@ -83,7 +117,7 @@ async def run_plotter(req: PlotterRequest):
         {"role": "user", "content": user_msg}
     ]
     
-    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 @router.post("/antagonist")
@@ -101,7 +135,7 @@ async def run_antagonist(req: AntagonistRequest):
         {"role": "user", "content": user_msg}
     ]
     
-    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 @router.post("/plotter-revision")
@@ -126,7 +160,7 @@ async def run_revision(req: RevisionRequest):
         {"role": "user", "content": user_msg}
     ]
     
-    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 @router.post("/outliner")
@@ -154,99 +188,110 @@ async def run_outliner(req: OutlinerRequest):
         {"role": "user", "content": user_msg}
     ]
     
-    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
-@router.post("/chapter-actions")
-async def run_chapter_actions(req: ChapterWriteRequest):
+@router.post("/chapter-plan")
+async def run_chapter_plan(req: ChapterPlanRequest):
     sys_prompt = (
-        "You are a narrative writer specialising in plot and action. Given the chapter "
-        "skeleton and context, write the key actions and events of this chapter in full "
-        "prose. Focus on WHAT HAPPENS — the physical events, decisions, and consequences. "
-        "Do not write dialogue yet — use placeholder tags like [DIALOGUE: character says "
-        "something to the effect of X] where dialogue would naturally occur. "
-        "Keep character voices consistent with their established profiles. "
-        f"Write approximately {req.target_words_per_chapter} words."
+        "You are a skilled story outliner. Generate a full chapter plan for the chapter specified.\n"
+        "Return a JSON object with exactly these four keys:\n"
+        "  title      — a punchy, evocative chapter title (5–10 words)\n"
+        "  intention  — 1–2 sentences: what this chapter achieves for the story\n"
+        "  scene_notes — 2–4 sentences: key beats, dialogue moments, devices, atmosphere\n"
+        "  skeleton   — 200–400 words structured outline covering key events, character motivations, emotional arc, and chapter ending\n"
+        "Any field that already has author-supplied content must be treated as a binding constraint — preserve the intent, do not contradict it.\n"
+        "Return only valid JSON, no markdown fences."
     )
     user_msg = build_user_message(req.context_elements)
-    
+
+    if req.prior_skeletons:
+        for s in req.prior_skeletons:
+            user_msg += f"## Chapter {s.number} Skeleton\n{s.skeleton}\n\n"
+
+    user_msg += f"## Chapter to Plan\nChapter {req.chapter_number}\n"
+    if req.chapter_title:
+        user_msg += f"Author-supplied title (use as seed): {req.chapter_title}\n"
+    if req.intention:
+        user_msg += f"Author-supplied intention (binding constraint): {req.intention}\n"
+    if req.scene_notes:
+        user_msg += f"Author-supplied scene notes (binding constraint): {req.scene_notes}\n"
+
+    messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": user_msg}
+    ]
+
+    raw = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    try:
+        plan = json.loads(raw)
+    except json.JSONDecodeError:
+        # strip markdown fences if model added them
+        cleaned = re.sub(r"^```[a-z]*\n?|\n?```$", "", raw.strip())
+        plan = json.loads(cleaned)
+    return plan
+
+DE_AI_RULES = """
+ANTI-AI WRITING RULES — avoid all of the following:
+- Overused words: delve, navigate, tapestry, nuanced, multifaceted, pivotal, underscore, foster, moreover, furthermore, it's worth noting, in conclusion, in summary, it is important to note
+- Em-dash overuse: use sparingly, not in every paragraph
+- Excessive hedging: "it could be argued", "one might say", "in many ways"
+- Overly smooth transitions: vary sentence openings, avoid formulaic connectors
+- Balanced "on one hand / on the other hand" constructions where prose would be more natural
+- Bullet lists masquerading as prose
+- Generic or thesis-statement opening sentences
+- Passive constructions where active voice is more natural
+- Repetitive sentence rhythm (vary length and structure)
+"""
+
+@router.post("/chapter-draft")
+async def run_chapter_draft(req: ChapterWriteRequest):
+    sys_prompt = (
+        "You are a narrative fiction writer. Write a complete draft of this chapter in full prose.\n"
+        "Follow this sequence within your draft:\n"
+        "1. Establish the scene with specific sensory atmosphere (light, sound, smell, texture, temperature).\n"
+        "2. Write all key actions and events — what physically happens, decisions made, consequences.\n"
+        "3. Where dialogue would naturally occur, write a placeholder: [DIALOGUE: {character} says something to the effect of {brief intent}]\n"
+        "Keep character voices, motivations, and emotional states consistent with their profiles.\n"
+        f"Target length: approximately {req.target_words_per_chapter} words.\n"
+        "Return ONLY the chapter prose. No commentary, no headers."
+    )
+    user_msg = build_user_message(req.context_elements)
     for summary in req.prior_chapter_summaries:
         user_msg += f"## Chapter {summary.get('number')} Summary: {summary.get('title')}\n{summary.get('summary')}\n\n"
-        
     if req.preceding_chapter_tail:
         user_msg += f"## End of Previous Chapter\n{req.preceding_chapter_tail}\n\n"
-        
-    user_msg += f"## Current Chapter\nChapter {req.chapter_number}: {req.chapter_title}\n\nSkeleton:\n{req.chapter_skeleton}\n"
-    
+    user_msg += f"## Chapter to Write\nChapter {req.chapter_number}: {req.chapter_title}\n\nSkeleton:\n{req.chapter_skeleton}\n"
+
     messages = [
         {"role": "system", "content": sys_prompt},
         {"role": "user", "content": user_msg}
     ]
-    
-    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
-@router.post("/chapter-sensory")
-async def run_chapter_sensory(req: ChapterWriteRequest):
+@router.post("/chapter-enrich")
+async def run_chapter_enrich(req: ChapterWriteRequest):
     sys_prompt = (
-        "You are a narrative writer specialising in atmosphere, setting and sensory detail. "
-        "Given a draft chapter, enrich it with vivid sensory details, atmosphere, and "
-        "descriptive passages. Add smell, sound, texture, temperature, and visual detail "
-        "where they serve the scene. Do not change plot events or add new ones. "
-        "Do not write dialogue — leave [DIALOGUE] placeholders in place. "
-        "Return the complete enriched chapter text."
+        "You are a prose editor performing a single enrichment pass on a draft chapter. Do all of the following in one pass:\n"
+        "1. DIALOGUE: Replace every [DIALOGUE: ...] placeholder with natural, character-appropriate spoken dialogue. "
+        "Each character must speak in their established voice — reflecting their background, education, and emotional state. "
+        "Dialogue must reveal character and advance the scene.\n"
+        "2. SENSORY: Layer in any missing sensory detail (sound, smell, texture, temperature) where it serves atmosphere. "
+        "Do not duplicate detail already present.\n"
+        "3. STYLE: Align vocabulary, sentence rhythm, and register with the stated genre, tone, and audience. "
+        "Fix awkward phrasing, repetition, and tonal inconsistency.\n"
+        f"{DE_AI_RULES}\n"
+        "Do not change plot events. Return the complete enriched chapter text. No commentary."
     )
     user_msg = build_user_message(req.context_elements)
     user_msg += f"## Chapter Draft\n{req.current_draft}\n"
-    
-    messages = [
-        {"role": "system", "content": sys_prompt},
-        {"role": "user", "content": user_msg}
-    ]
-    
-    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
-    return {"content": result}
 
-@router.post("/chapter-dialogue")
-async def run_chapter_dialogue(req: ChapterWriteRequest):
-    sys_prompt = (
-        "You are a dialogue writer. Given a draft chapter with [DIALOGUE] placeholders, "
-        "replace each placeholder with natural, character-appropriate dialogue. "
-        "Each character should speak in their established voice — consider their background, "
-        "education, emotional state, and relationship to the person they are addressing. "
-        "Dialogue should reveal character and advance the scene. "
-        "Do not change any non-dialogue prose. Return the complete chapter text."
-    )
-    user_msg = build_user_message(req.context_elements)
-    user_msg += f"## Chapter Draft\n{req.current_draft}\n"
-    
     messages = [
         {"role": "system", "content": sys_prompt},
         {"role": "user", "content": user_msg}
     ]
-    
-    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
-    return {"content": result}
-
-@router.post("/chapter-style")
-async def run_chapter_style(req: ChapterWriteRequest):
-    sys_prompt = (
-        "You are a prose style editor. Given a draft chapter, edit it for consistency "
-        "of style, voice, and tone as established by the project parameters. "
-        "Ensure vocabulary, sentence length, and register are appropriate for the "
-        "stated audience and genre. Fix any awkward phrasing, repetition, or tonal "
-        "inconsistency. Do not change plot events or dialogue content — only improve "
-        "how things are expressed. Return the complete edited chapter text."
-    )
-    user_msg = build_user_message(req.context_elements)
-    user_msg += f"## Chapter Draft\n{req.current_draft}\n"
-    
-    messages = [
-        {"role": "system", "content": sys_prompt},
-        {"role": "user", "content": user_msg}
-    ]
-    
-    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 @router.post("/chapter-critic")
@@ -274,7 +319,7 @@ async def run_chapter_critic(req: ChapterWriteRequest):
         {"role": "user", "content": user_msg}
     ]
     
-    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 @router.post("/chapter-polish")
@@ -285,7 +330,8 @@ async def run_chapter_polish(req: ChapterWriteRequest):
         "and improve the text accordingly. Do not mention the critique process in your "
         "output — simply return an improved version of the chapter. "
         "Preserve all plot events, character voices, and dialogue unless the critic "
-        "specifically flagged them as wrong."
+        "specifically flagged them as wrong.\n"
+        f"{DE_AI_RULES}"
     )
     user_msg = build_user_message(req.context_elements)
     user_msg += f"## Chapter Draft\n{req.current_draft}\n"
@@ -296,7 +342,7 @@ async def run_chapter_polish(req: ChapterWriteRequest):
         {"role": "user", "content": user_msg}
     ]
     
-    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 @router.post("/chapter-summary")
@@ -315,8 +361,126 @@ async def run_chapter_summary(req: ChapterWriteRequest):
         {"role": "user", "content": user_msg}
     ]
     
-    result = await ollama_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
+
+@router.post("/continuity")
+async def run_continuity(req: ContinuityRequest):
+    clues_json = json.dumps(req.planted_clues, indent=2) if req.planted_clues else "[]"
+    prior_issues = (
+        f"\n\nNote: this is a re-run. The previous continuity check raised these issues:\n{req.continuity_issues}\n"
+        "Verify whether the revised plan has addressed them."
+    ) if req.continuity_issues else ""
+
+    sys_prompt = (
+        "You are a continuity editor and story coherence analyst. You will be given a revised plot plan "
+        "and a list of planted clues (foreshadowing elements, motifs, cross-chapter callbacks).\n\n"
+        "Your job:\n"
+        "1. Verify every planted clue against the plan — check for contradictions, impossible payoffs, "
+        "or setups that no longer exist.\n"
+        "2. Update each clue's status: 'active' (valid, keep tracking) or 'blocked' "
+        "(contradicted, impossible, or the setup/payoff no longer exists — state why).\n"
+        "3. Flag any plot-level continuity issues that must be fixed before chapter outlining.\n"
+        "4. Return a verdict: 'approve' if the plan is ready for outlining, 'revise' if specific "
+        "issues must be fixed first.\n\n"
+        "Return ONLY a valid JSON object — no markdown, no code fences:\n"
+        "{\n"
+        '  "verdict": "approve" | "revise",\n'
+        '  "summary": "2-3 sentence overall assessment",\n'
+        '  "issues": ["specific issue if revise, else empty array"],\n'
+        '  "clue_updates": [\n'
+        '    {"id": "clue_id", "status": "active|blocked", '
+        '"notes": "specific reason — why blocked, or confirmation it is still active"}\n'
+        "  ]\n"
+        "}"
+        + prior_issues
+    )
+    user_msg = build_user_message(req.context_elements)
+    user_msg += f"\n## Revised Plot Plan\n{req.plotter_revision_output}\n"
+    user_msg += f"\n## Planted Clues\n```json\n{clues_json}\n```\n"
+
+    messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": user_msg},
+    ]
+    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    result = re.sub(r'^```(?:json)?\s*', '', result.strip())
+    result = re.sub(r'\s*```$', '', result.strip())
+    return json.loads(result)
+
+
+@router.post("/summarise-premise")
+async def run_summarise_premise(req: SummarisePremiseRequest):
+    sys_prompt = (
+        "You are a precise summariser. Given a full story premise and plot treatment, write a "
+        "compressed summary of 200-300 words suitable for agents that need the essential story "
+        "arc without the full detail. Cover: genre/tone, the central conflict, the protagonist's "
+        "goal, the main antagonist force, the three-act structure in one sentence each, and how "
+        "it ends. Be specific — names, places, stakes — not vague."
+    )
+    user_msg = build_user_message(req.context_elements)
+    user_msg += f"\n## Full Premise\n{req.premise}\n"
+
+    messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": user_msg},
+    ]
+    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    return {"content": result}
+
+
+@router.post("/chapter-summarise-enrich")
+async def run_chapter_summarise_enrich(req: SummariseEnrichRequest):
+    sys_prompt = (
+        "You are a precise summariser. Given a fully enriched chapter draft, write a factual "
+        "summary of 80-120 words covering: key events that occurred, how each main character's "
+        "situation or knowledge changed, any planted clues or motifs that appeared, and the "
+        "emotional state at the chapter's end. This summary is used as a compact reference for "
+        "downstream agents — be specific about facts, not vague about themes."
+    )
+    user_msg = (
+        f"## Chapter {req.chapter_number}: {req.chapter_title}\n\n"
+        f"{req.enrich_draft}\n"
+    )
+
+    messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": user_msg},
+    ]
+    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    return {"content": result}
+
+
+@router.post("/parse-dump")
+async def run_parse_dump(req: ParseDumpRequest):
+    sys_prompt = (
+        "You are a story structure analyst. Given a raw creative dump from an author, extract and organise it into five clean fields. "
+        "Return ONLY a valid JSON object — no markdown, no code fences, no explanation.\n\n"
+        "Required JSON structure:\n"
+        "{\n"
+        '  "role_constraints": "Genre conventions, tone, narrative style, hard rules — concise, goes in every system prompt",\n'
+        '  "premise": "Full plot treatment: overarching themes, structure, arc, cases/acts, key tensions and how they resolve",\n'
+        '  "characters": "Per-character sketches: name, role, motivation, voice notes, key relationships",\n'
+        '  "world_notes": "Setting details, world-specific canon, magic or technology systems relevant to the story",\n'
+        '  "planted_clues": [\n'
+        '    {"id": "clue_1", "label": "Short clue name", "description": "What it is and how it appears", '
+        '"planted_in": "Where first introduced", "pays_off_in": "Where it resolves or pays off", "status": "active"}\n'
+        '  ]\n'
+        "}\n\n"
+        "For planted_clues, identify all foreshadowing elements, hidden connections, recurring motifs, and cross-case callbacks "
+        "that span multiple chapters or plot threads. Each should be a discrete, trackable item."
+    )
+    user_msg = f"## Creative Dump\n\n{req.dump_text}"
+    messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": user_msg},
+    ]
+    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    # Strip markdown code fences if the model adds them
+    result = re.sub(r'^```(?:json)?\s*', '', result.strip())
+    result = re.sub(r'\s*```$', '', result.strip())
+    return json.loads(result)
+
 
 @router.get("/health")
 async def health_check():

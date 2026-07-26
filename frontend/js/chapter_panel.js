@@ -142,9 +142,10 @@ window.ChapterPanel = {
                 <textarea rows="3" placeholder="Beats, dialogue ideas, devices..." onchange="ChapterPanel.updateField('${ch.id}', 'scene_notes', this.value)">${ch.scene_notes}</textarea>
                 
                 <div class="button-row" style="margin: 10px 0;">
+                    <button class="btn-secondary" onclick="ChapterPanel.generatePlan('${ch.id}')" ${this.isGenerating ? 'disabled' : ''}>Generate Chapter Plan</button>
                     <button class="btn-primary" onclick="ChapterPanel.generateSkeleton('${ch.id}')" ${this.isGenerating ? 'disabled' : ''}>Generate Skeleton</button>
-                    ${!ch.approved ? 
-                        `<button class="btn-success" onclick="ChapterPanel.approveChapter('${ch.id}')" ${(!ch.skeleton || this.isGenerating) ? 'disabled' : ''}>Approve & Add to Context</button>` : 
+                    ${!ch.approved ?
+                        `<button class="btn-success" onclick="ChapterPanel.approveChapter('${ch.id}')" ${(!ch.skeleton || this.isGenerating) ? 'disabled' : ''}>Approve & Add to Context</button>` :
                         `<button class="btn-secondary" onclick="ChapterPanel.unapproveChapter('${ch.id}')" ${this.isGenerating ? 'disabled' : ''}>Unapprove</button>`
                     }
                 </div>
@@ -172,6 +173,52 @@ window.ChapterPanel = {
             this.expandedIds.add(id);
         }
         this.renderAllChapters();
+    },
+
+    async generatePlan(chapterId) {
+        const ch = this.chapters.find(c => c.id === chapterId);
+        if (!ch) return;
+
+        this.isGenerating = true;
+        this.renderAllChapters();
+        document.body.style.cursor = 'wait';
+
+        try {
+            const context_elements = window.ContextPanel.exportElementsForLLM();
+            const prior_skeletons = this.chapters
+                .filter(c => c.approved && c.number < ch.number)
+                .map(c => ({ number: c.number, skeleton: c.skeleton }));
+
+            const res = await fetch('/api/llm/chapter-plan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    context_elements,
+                    prior_skeletons,
+                    chapter_number: ch.number,
+                    chapter_title: ch.title === `Chapter ${ch.number}` ? '' : ch.title,
+                    intention: ch.intention,
+                    scene_notes: ch.scene_notes,
+                    project_title: document.getElementById('project-title')?.value || 'unknown',
+                })
+            });
+
+            if (!res.ok) throw new Error("Chapter plan failed");
+            const plan = await res.json();
+
+            if (plan.title)       ch.title      = plan.title;
+            if (plan.intention)   ch.intention  = plan.intention;
+            if (plan.scene_notes) ch.scene_notes = plan.scene_notes;
+            if (plan.skeleton)    { ch.skeleton = plan.skeleton; ch.status = "drafted"; }
+
+        } catch (e) {
+            console.error(e);
+            alert("Error generating chapter plan — check console.");
+        } finally {
+            this.isGenerating = false;
+            document.body.style.cursor = 'default';
+            this.renderAllChapters();
+        }
     },
 
     async generateSkeleton(chapterId) {

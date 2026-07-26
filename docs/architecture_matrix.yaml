@@ -1,0 +1,498 @@
+# BookBot 08 — Architecture Matrix
+# https://github.com/Rewbis/BookBot_08
+#
+# Hand-edited by the project owner. Not generated or mutated at runtime.
+# Loaded read-only by the Architecture tab in the UI.
+#
+# ── Notation ──────────────────────────────────────────────────────────────────
+# C  = Create       — field first written / populated
+# R  = Read         — field consumed as input by this agent
+# U  = Update       — field overwritten with new content
+# D  = Delete entry — list fields only; scalars use U (overwrite)
+#
+# planted_clues[].status is never D'd by any agent — set to 'cut' with notes
+# so the human can force-reinstate by resolving the blocker.
+#
+# context_elements writes are always human-gated: agents write to their own
+# output fields (plotter_output, chapter.skeleton, …); humans decide what
+# gets promoted into the context window via 'Approve → Context' / 'Accept'.
+# ──────────────────────────────────────────────────────────────────────────────
+
+meta:
+  github: https://github.com/Rewbis/BookBot_08
+  last_updated: "2026-07-25"
+  # Agents marked (planned) in earlier versions are now implemented:
+  # continuity, summariser_premise, summariser_enrich, summariser_chapter
+  notation:
+    C:  "Create — field first written/populated"
+    R:  "Read — field consumed as input by this agent"
+    U:  "Update — field overwritten with new content (U implies R; the agent must read to update)"
+    D:  "Delete entry — list fields only (e.g. removing a context element)"
+    # R is shown explicitly alongside U only when the read is architecturally significant
+    # (e.g. the agent inspects current state to decide whether to act, not just overwrites blindly).
+
+# ── CRUD Matrix ───────────────────────────────────────────────────────────────
+crud_matrix:
+
+  columns:
+    - id: human_dump
+      label: "Human\n(Creative Dump)"
+      model: "—"
+      num_ctx: "—"
+
+    - id: parse_dump
+      label: "Parse &\nStructure"
+      model: claude-sonnet-5
+      num_ctx: API
+
+    - id: human_slots
+      label: "Human\n(Slot Review)"
+      model: "—"
+      num_ctx: "—"
+
+    - id: plotter
+      label: Plotter
+      model: claude-sonnet-5
+      num_ctx: API
+
+    - id: antagonist
+      label: Antagonist
+      model: claude-sonnet-5
+      num_ctx: API
+
+    - id: plotter_revision
+      label: "Plotter\nRevision"
+      model: claude-sonnet-5
+      num_ctx: API
+
+    - id: continuity
+      label: "Continuity\nAgent"
+      model: claude-sonnet-5
+      num_ctx: API
+
+    - id: human_phase_a
+      label: "Human\n(Phase A loop)"
+      model: "—"
+      num_ctx: "—"
+
+    - id: summariser_premise
+      label: "Summariser\n(premise)"
+      model: claude-sonnet-5
+      num_ctx: API
+
+    - id: human_phase_b
+      label: "Human\n(Phase B)"
+      model: "—"
+      num_ctx: "—"
+
+    - id: outliner
+      label: Outliner
+      model: claude-sonnet-5
+      num_ctx: API
+
+    - id: drafter
+      label: "Drafter\n(Pass 1)"
+      model: claude-sonnet-5
+      num_ctx: API
+
+    - id: local_explicit
+      label: "Local Model\n(Explicit fill)"
+      model: "qwen3-14b\n(abliterated)"
+      num_ctx: "16384"
+
+    - id: enricher
+      label: "Enricher\n(Pass 2)"
+      model: claude-sonnet-5
+      num_ctx: API
+
+    - id: summariser_enrich
+      label: "Summariser\n(post-enrich)"
+      model: claude-sonnet-5
+      num_ctx: API
+
+    - id: critic
+      label: "Critic\n(Pass 3a)"
+      model: claude-sonnet-5
+      num_ctx: API
+
+    - id: polish
+      label: "Polish\n(Pass 3b)"
+      model: claude-sonnet-5
+      num_ctx: API
+
+    - id: summariser_chapter
+      label: "Summariser\n(post-polish)"
+      model: claude-sonnet-5
+      num_ctx: API
+
+  groups:
+
+    - label: "BookProject — project-level fields"
+      rows:
+
+        - field: creative_dump
+          desc: "Raw author brain-dump, any format. Starting point for all structure."
+          cells:
+            human_dump:    "C,U"
+            parse_dump:    "R"
+
+        - field: role_constraints
+          desc: "Genre conventions, tone, hard rules. Injected into every system prompt."
+          cells:
+            parse_dump:       "C"
+            human_slots:      "U"
+            plotter:          "R"
+            antagonist:       "R"
+            plotter_revision: "R"
+            continuity:       "R"
+            outliner:         "R"
+            drafter:          "R"
+            enricher:         "R"
+            critic:           "R"
+            polish:           "R"
+
+        - field: premise
+          desc: "Full plot treatment: arc, structure, key tensions, how they resolve."
+          cells:
+            parse_dump:        "C"
+            human_slots:       "U"
+            plotter:           "R"
+            antagonist:        "R"
+            plotter_revision:  "R"
+            continuity:        "R"
+            summariser_premise: "R"
+
+        - field: premise_summary
+          desc: "Compressed premise for agents with limited context budget."
+          cells:
+            summariser_premise: "C"
+            outliner:           "R"
+            drafter:            "R"
+
+        - field: characters
+          desc: "Per-character sketches: name, role, motivation, voice, relationships."
+          cells:
+            parse_dump:       "C"
+            human_slots:      "U"
+            plotter:          "R"
+            antagonist:       "R"
+            plotter_revision: "R"
+            continuity:       "R"
+            outliner:         "R"
+            drafter:          "R"
+            enricher:         "R"
+            critic:           "R"
+            polish:           "R"
+
+        - field: world_notes
+          desc: "Setting, canon, magic/tech systems relevant to the story."
+          cells:
+            parse_dump:       "C"
+            human_slots:      "U"
+            plotter:          "R"
+            antagonist:       "R"
+            plotter_revision: "R"
+            continuity:       "R"
+            outliner:         "R"
+            drafter:          "R"
+
+        - field: "planted_clues[ ] — label / description"
+          list_field: true
+          desc: >
+            Discrete foreshadowing elements, motifs, cross-chapter callbacks.
+            D = human removes entry entirely (rare — prefer status 'cut' to
+            preserve the option to reinstate by resolving the blocker).
+          cells:
+            parse_dump:    "C"
+            human_slots:   "U,D"
+            human_phase_a: "U,D"
+            continuity:    "R,U"
+            drafter:       "R"
+            enricher:      "R"
+
+        - field: "planted_clues[ ] — status / notes"
+          desc: >
+            active | blocked, plus rich-text reason.
+            'blocked' means contradicted or impossible in the current plan — the
+            notes field states why so the human can resolve the blocker and
+            reinstate. Never D'd by any agent.
+          cells:
+            parse_dump:    "C"
+            human_slots:   "U"
+            continuity:    "R,U"
+            human_phase_a: "U"
+
+        - field: plotter_output
+          desc: "World dict + plot overview produced by Plotter. Persisted in snapshot."
+          cells:
+            plotter:          "C,U"
+            antagonist:       "R"
+            plotter_revision: "R"
+            continuity:       "R"
+            human_phase_a:    "R"
+
+        - field: antagonist_output
+          desc: "Critique list from Antagonist. Persisted so the full loop is reviewable."
+          cells:
+            antagonist:       "C,U"
+            plotter_revision: "R"
+            continuity:       "R"
+            human_phase_a:    "R"
+
+        - field: plotter_revision_output
+          desc: "Revised world dict + plot from the Plotter Revision pass."
+          cells:
+            plotter_revision: "C,U"
+            continuity:       "R"
+            human_phase_a:    "R"
+
+        - field: continuity_output
+          desc: >
+            Continuity Agent report: clue status updates, contradiction flags,
+            loop verdict (approve to Phase B, or escalate back to Plotter).
+          cells:
+            continuity:    "C,U"
+            human_phase_a: "R"
+
+        - field: "context_elements[ ]"
+          list_field: true
+          desc: >
+            Ordered list of context blocks sent to every LLM call — human-curated.
+            Agents write to their own output fields; humans promote content here
+            via 'Approve → Context' or 'Accept Output' buttons.
+            parse_dump, local_explicit, and summariser_chapter do not receive
+            context_elements — they operate on specific text inputs only.
+          cells:
+            human_slots:       "C,D"
+            human_phase_a:     "C,U,D"
+            plotter:           "R"
+            antagonist:        "R"
+            plotter_revision:  "R"
+            continuity:        "R"
+            summariser_premise: "R"
+            human_phase_b:     "C,U,D"
+            outliner:          "R"
+            drafter:           "R"
+            enricher:          "R"
+            summariser_enrich: "R"
+            critic:            "R"
+            polish:            "R"
+
+    - label: "Chapter — per-chapter fields"
+      rows:
+
+        - field: "chapter.title / intention / scene_notes"
+          desc: "Human-set chapter metadata: what this chapter is for and what happens."
+          cells:
+            human_phase_b: "C,U"
+
+        - field: chapter.skeleton
+          desc: "Structured outline: key events, character motivations, arc, chapter ending."
+          cells:
+            outliner:      "C"
+            human_phase_b: "U"
+
+        - field: chapter.draft_text
+          desc: >
+            Pass 1 prose: scene atmosphere, events, [DIALOGUE: ...] placeholders.
+            Local model updates this field to fill any [EXPLICIT: ...] placeholders.
+          cells:
+            drafter:        "C"
+            local_explicit: "U"
+
+        - field: chapter.has_explicit_content
+          desc: "Flag set true if the local model filled any [EXPLICIT: ...] placeholders."
+          cells:
+            local_explicit: "C"
+            critic:         "R"
+
+        - field: chapter.explicit_review_notes
+          desc: "Critic notes on locally-generated explicit passages, for human review."
+          cells:
+            critic:  "C,U"
+            polish:  "R"
+
+        - field: chapter.enrich_draft
+          desc: "Pass 2: dialogue filled, sensory detail layered, De-AI rules applied."
+          cells:
+            enricher:          "C"
+            summariser_enrich: "R"
+            critic:            "R"
+            polish:            "R"
+
+        - field: chapter.enrich_draft_summary
+          desc: "Compressed summary of enrich_draft for downstream context economy."
+          cells:
+            summariser_enrich: "C"
+
+        - field: chapter.critic_output
+          desc: "Specific critique: plot gaps, voice violations, pacing, tonal issues."
+          cells:
+            critic:  "C,U"
+            polish:  "R"
+
+        - field: chapter.polish_draft
+          desc: "Pass 3b: critic-addressed final prose."
+          cells:
+            polish:             "C"
+            summariser_chapter: "R"
+
+        - field: chapter.summary
+          desc: >
+            100-150 word factual summary used as prior-chapter context
+            when drafting subsequent chapters.
+          cells:
+            summariser_chapter: "C,U"
+            drafter:            "R"
+
+        - field: chapter.phase_c_status
+          desc: "not_started | drafting | enriching | critiquing | polishing | done"
+          cells:
+            drafter:        "U"
+            local_explicit: "U"
+            enricher:       "U"
+            critic:         "U"
+            polish:         "U"
+
+        - field: "chapter.approved / status"
+          desc: "Human approval gate. Blocks progression to next phase."
+          cells:
+            human_phase_b: "U"
+
+
+# ── Model Routing Table ────────────────────────────────────────────────────────
+model_routing:
+  note: >
+    Shows which model each agent uses per pipeline phase.
+    API = Anthropic Claude API (no local context window limit).
+    Local = Ollama-served model; num_ctx = 16384 tokens.
+    The local model is invoked only to fill [EXPLICIT: ...] placeholders
+    that frontier models cannot generate. Its output is flagged via
+    chapter.has_explicit_content and reviewed by the Critic.
+
+  columns:
+    - id: phase_a
+      label: "Phase A\nConcept"
+    - id: phase_b
+      label: "Phase B\nOutline"
+    - id: phase_c1
+      label: "Phase C — Pass 1\nDraft"
+    - id: phase_c2
+      label: "Phase C — Pass 2\nEnrich"
+    - id: phase_c3a
+      label: "Phase C — Pass 3a\nCritic"
+    - id: phase_c3b
+      label: "Phase C — Pass 3b\nPolish"
+
+  rows:
+    - agent: "Parse & Structure"
+      phase_a:   claude-sonnet-5
+      phase_b:   "—"
+      phase_c1:  "—"
+      phase_c2:  "—"
+      phase_c3a: "—"
+      phase_c3b: "—"
+
+    - agent: Plotter
+      phase_a:   claude-sonnet-5
+      phase_b:   "—"
+      phase_c1:  "—"
+      phase_c2:  "—"
+      phase_c3a: "—"
+      phase_c3b: "—"
+
+    - agent: Antagonist
+      phase_a:   claude-sonnet-5
+      phase_b:   "—"
+      phase_c1:  "—"
+      phase_c2:  "—"
+      phase_c3a: "—"
+      phase_c3b: "—"
+
+    - agent: "Plotter Revision"
+      phase_a:   claude-sonnet-5
+      phase_b:   "—"
+      phase_c1:  "—"
+      phase_c2:  "—"
+      phase_c3a: "—"
+      phase_c3b: "—"
+
+    - agent: "Continuity Agent"
+      phase_a:   claude-sonnet-5
+      phase_b:   "—"
+      phase_c1:  "—"
+      phase_c2:  "—"
+      phase_c3a: "—"
+      phase_c3b: "—"
+
+    - agent: "Summariser (premise)"
+      phase_a:   claude-sonnet-5
+      phase_b:   "—"
+      phase_c1:  "—"
+      phase_c2:  "—"
+      phase_c3a: "—"
+      phase_c3b: "—"
+
+    - agent: Outliner
+      phase_a:   "—"
+      phase_b:   claude-sonnet-5
+      phase_c1:  "—"
+      phase_c2:  "—"
+      phase_c3a: "—"
+      phase_c3b: "—"
+
+    - agent: Drafter
+      phase_a:   "—"
+      phase_b:   "—"
+      phase_c1:  claude-sonnet-5
+      phase_c2:  "—"
+      phase_c3a: "—"
+      phase_c3b: "—"
+
+    - agent: "Local Model (Explicit fill)"
+      phase_a:   "—"
+      phase_b:   "—"
+      phase_c1:  "qwen3-14b (abliterated)"
+      phase_c2:  "—"
+      phase_c3a: "—"
+      phase_c3b: "—"
+
+    - agent: Enricher
+      phase_a:   "—"
+      phase_b:   "—"
+      phase_c1:  "—"
+      phase_c2:  claude-sonnet-5
+      phase_c3a: "—"
+      phase_c3b: "—"
+
+    - agent: "Summariser (post-enrich)"
+      phase_a:   "—"
+      phase_b:   "—"
+      phase_c1:  "—"
+      phase_c2:  claude-sonnet-5
+      phase_c3a: "—"
+      phase_c3b: "—"
+
+    - agent: Critic
+      phase_a:   "—"
+      phase_b:   "—"
+      phase_c1:  "—"
+      phase_c2:  "—"
+      phase_c3a: claude-sonnet-5
+      phase_c3b: "—"
+
+    - agent: Polish
+      phase_a:   "—"
+      phase_b:   "—"
+      phase_c1:  "—"
+      phase_c2:  "—"
+      phase_c3a: "—"
+      phase_c3b: claude-sonnet-5
+
+    - agent: "Summariser (post-polish)"
+      phase_a:   "—"
+      phase_b:   "—"
+      phase_c1:  "—"
+      phase_c2:  "—"
+      phase_c3a: "—"
+      phase_c3b: claude-sonnet-5

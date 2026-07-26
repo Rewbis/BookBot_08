@@ -1,9 +1,11 @@
 document.addEventListener('DOMContentLoaded', async () => {
     // 1. Initialize modules
     window.ContextPanel.init();
+    window.DumpPanel.init();
     window.LLMPanel.init();
     window.ChapterPanel.init();
     window.ChapterCPanel.init();
+    window.ResearchPanel.init();
 
     // 2. Bind top-level buttons
     document.getElementById('btn-new-project').addEventListener('click', () => window.Snapshot.newProject());
@@ -34,10 +36,100 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (t.dataset.tab === 'tab-c') {
                 window.ChapterCPanel.renderAllChapters();
             }
+            if (t.dataset.tab === 'tab-arch') {
+                window.ArchitecturePanel.init();
+            }
         });
     });
 
-    // 4. Check Ollama Status
+    // 3b. Resizable panel divider
+    (function () {
+        const container = document.querySelector('.container');
+        const divider   = document.getElementById('resize-divider');
+        let dragging = false;
+
+        const clamp = pct => Math.min(Math.max(pct, 18), 65);
+
+        const apply = pct => {
+            container.style.setProperty('--left-width', pct + '%');
+            localStorage.setItem('bb8-panel-split', pct);
+        };
+
+        // Restore saved split
+        const saved = localStorage.getItem('bb8-panel-split');
+        if (saved) apply(parseFloat(saved));
+
+        divider.addEventListener('mousedown', e => {
+            dragging = true;
+            divider.classList.add('is-dragging');
+            document.body.style.cursor    = 'col-resize';
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', e => {
+            if (!dragging) return;
+            const rect = container.getBoundingClientRect();
+            apply(clamp((e.clientX - rect.left) / rect.width * 100));
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (!dragging) return;
+            dragging = false;
+            divider.classList.remove('is-dragging');
+            document.body.style.cursor    = '';
+            document.body.style.userSelect = '';
+        });
+    })();
+
+    // 3c. Position fixed tooltip on hover (escapes overflow-y:auto scroll container)
+    document.querySelectorAll('.info-tooltip').forEach(el => {
+        const tip = el.querySelector('.tooltip-text');
+        if (!tip) return;
+        el.addEventListener('mouseenter', () => {
+            const r = el.getBoundingClientRect();
+            tip.style.left   = Math.max(4, r.left + r.width / 2 - 125) + 'px';
+            tip.style.top    = '';
+            tip.style.bottom = (window.innerHeight - r.top + 8) + 'px';
+        });
+    });
+
+    // 3d. Auto-resize all .streaming-output textareas
+    window.autoResize = function(el) {
+        el.style.height = 'auto';
+        el.style.height = el.scrollHeight + 'px';
+    };
+    function resizeAllOutputs() {
+        document.querySelectorAll('.streaming-output').forEach(window.autoResize);
+    }
+    document.querySelectorAll('.streaming-output').forEach(el => {
+        el.addEventListener('input', () => window.autoResize(el));
+    });
+    window.addEventListener('llm:complete', resizeAllOutputs);
+    // Also resize after snapshot load (called from snapshot.js)
+    window._resizeAllOutputs = resizeAllOutputs;
+
+    // 4. Usage tracker
+    async function refreshUsage() {
+        try {
+            const res = await fetch('/api/tokens/usage');
+            const d = await res.json();
+            document.getElementById('claude-in').innerText   = d.claude.input_tokens.toLocaleString();
+            document.getElementById('claude-out').innerText  = d.claude.output_tokens.toLocaleString();
+            document.getElementById('claude-cost').innerText = '$' + d.claude.cost_usd.toFixed(6);
+            document.getElementById('local-in').innerText    = d.local.input_tokens.toLocaleString();
+            document.getElementById('local-out').innerText   = d.local.output_tokens.toLocaleString();
+            document.getElementById('total-cost').innerText  = '$' + d.total_cost_usd.toFixed(6);
+        } catch (e) { /* backend not up yet */ }
+    }
+    document.getElementById('btn-reset-usage').addEventListener('click', async () => {
+        await fetch('/api/tokens/usage/reset', { method: 'POST' });
+        refreshUsage();
+    });
+    window.addEventListener('llm:complete', refreshUsage);
+    refreshUsage();
+
+    // 5. Check Ollama Status
     async function checkOllama() {
         try {
             const res = await fetch('/api/llm/health');

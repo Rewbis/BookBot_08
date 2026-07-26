@@ -31,9 +31,26 @@
                         top-to-bottom. Place the most important context at the BOTTOM — the LLM gives more weight to
                         recent (lower) items.</span></span></h3>
             <div class="token-tracker">
-                <div class="token-text">Total tokens to send: <span id="token-total-count">0</span> / 32,000</div>
+                <div class="token-text">Context to send: <span id="token-total-count">0</span> / 16,000</div>
                 <div class="token-bar-container">
                     <div id="token-bar-fill" class="token-bar-fill green" style="width: 0%;"></div>
+                </div>
+                <div class="usage-grid">
+                    <div class="usage-row usage-claude">
+                        <span class="usage-label">☁ Claude</span>
+                        <span class="usage-detail">↑ <span id="claude-in">0</span> ↓ <span id="claude-out">0</span></span>
+                        <span class="usage-cost" id="claude-cost">$0.000000</span>
+                    </div>
+                    <div class="usage-row usage-local">
+                        <span class="usage-label">⚙ Local</span>
+                        <span class="usage-detail">↑ <span id="local-in">0</span> ↓ <span id="local-out">0</span></span>
+                        <span class="usage-cost">free</span>
+                    </div>
+                    <div class="usage-total-row">
+                        <span>Session cost</span>
+                        <span id="total-cost">$0.000000</span>
+                        <button id="btn-reset-usage" title="Reset session counters">↺</button>
+                    </div>
                 </div>
             </div>
             <div id="context-element-list" class="element-list">
@@ -42,6 +59,8 @@
             <button id="btn-add-element" class="full-width-btn">+ Add Element</button>
         </aside>
 
+        <div class="resize-divider" id="resize-divider"></div>
+
         <!-- RIGHT COLUMN -->
         <section class="work-panel">
             <div class="tabs">
@@ -49,22 +68,13 @@
                 <button class="tab-btn" data-tab="tab-b">Phase B: Outlines</button>
                 <button class="tab-btn" data-tab="tab-c">Phase C: Drafting</button>
                 <button class="tab-btn disabled" data-tab="tab-d" title="Coming in V2">Phase D: Export</button>
+                <button class="tab-btn" data-tab="tab-arch">Architecture</button>
             </div>
 
             <div class="tab-content" id="tab-a">
-                <div class="form-grid">
-                    <div>
-                        <label>Genre</label>
-                        <input type="text" id="setup-genre" placeholder="e.g. Sci-Fi">
-                    </div>
-                    <div>
-                        <label>Tone/Style</label>
-                        <input type="text" id="setup-tone" placeholder="e.g. Dark, gritty">
-                    </div>
-                    <div>
-                        <label>Audience</label>
-                        <input type="text" id="setup-audience" placeholder="e.g. Young Adult">
-                    </div>
+
+                <!-- Project metadata (minimal — just what drives chapter generation) -->
+                <div class="metadata-row">
                     <div>
                         <label>Target Words</label>
                         <input type="number" id="setup-words" value="50000">
@@ -75,48 +85,181 @@
                     </div>
                 </div>
 
+                <hr>
 
+                <!-- Creative Dump -->
+                <div class="dump-section">
+                    <div class="dump-header">
+                        <div>
+                            <h3>Creative Dump</h3>
+                            <p class="section-hint">Paste your raw ideas — characters, plot, world, any form. The structure agent will sort it out.</p>
+                        </div>
+                        <div class="button-row">
+                            <button id="btn-parse-dump" class="btn-primary">Parse &amp; Structure</button>
+                            <span id="parse-status" class="status-text"></span>
+                        </div>
+                    </div>
+                    <textarea id="creative-dump" rows="12" placeholder="Your story, however it exists in your head right now..."></textarea>
+                </div>
+
+                <!-- Parsed Slots (hidden until parse runs) -->
+                <div id="parsed-slots" style="display: none;">
+                    <hr>
+                    <h3>Structured Slots</h3>
+
+                    <div class="slot-card">
+                        <div class="slot-header">
+                            <div>
+                                <span class="slot-label">Role &amp; Constraints</span>
+                                <span class="slot-hint">Goes in every system prompt — genre, conventions, tone, hard rules. Keep it concise.</span>
+                            </div>
+                            <button class="btn-success btn-sm" onclick="DumpPanel.approveSlot('role_constraints')">Approve → Context</button>
+                        </div>
+                        <textarea id="slot-role-text" rows="4" class="slot-textarea"></textarea>
+                    </div>
+
+                    <div class="slot-card">
+                        <div class="slot-header">
+                            <div>
+                                <span class="slot-label">Premise / Plot Bible</span>
+                                <span class="slot-hint">Full treatment — Plotter reads this in full. Drafter/Continuity get a summary only.</span>
+                            </div>
+                            <button class="btn-success btn-sm" onclick="DumpPanel.approveSlot('premise')">Approve → Context</button>
+                        </div>
+                        <textarea id="slot-premise-text" rows="10" class="slot-textarea"></textarea>
+                    </div>
+
+                    <div class="slot-card">
+                        <div class="slot-header">
+                            <div>
+                                <span class="slot-label">Characters</span>
+                                <span class="slot-hint">Per-character sketches — name, role, motivation, voice, relationships.</span>
+                            </div>
+                            <button class="btn-success btn-sm" onclick="DumpPanel.approveSlot('characters')">Approve → Context</button>
+                        </div>
+                        <textarea id="slot-characters-text" rows="6" class="slot-textarea"></textarea>
+                    </div>
+
+                    <div class="slot-card">
+                        <div class="slot-header">
+                            <div>
+                                <span class="slot-label">World Notes</span>
+                                <span class="slot-hint">Setting, canon, magic/tech systems relevant to the story.</span>
+                            </div>
+                            <button class="btn-success btn-sm" onclick="DumpPanel.approveSlot('world_notes')">Approve → Context</button>
+                        </div>
+                        <textarea id="slot-world-text" rows="5" class="slot-textarea"></textarea>
+                    </div>
+
+                    <div class="slot-card">
+                        <div class="slot-header">
+                            <div>
+                                <span class="slot-label">Planted Clues &amp; Foreshadowing</span>
+                                <span class="slot-hint">Cross-case elements the Continuity agent tracks. Each is a discrete, named item.</span>
+                            </div>
+                            <button class="btn-secondary btn-sm" onclick="DumpPanel.addClue()">+ Add Clue</button>
+                        </div>
+                        <div id="planted-clues-list"></div>
+                    </div>
+                </div>
 
                 <hr>
 
-                <h3>Generation Controls</h3>
-                <div class="generation-controls">
-                    <label>System Prompt Override</label>
-                    <textarea id="system-prompt" rows="3" placeholder="Leave blank for default prompt..."></textarea>
-
-                    <div class="control-row">
-                        <label>Antagonist Rounds: <input type="number" id="antagonist-rounds" value="1" min="0"></label>
+                <!-- Research (Tavily) -->
+                <div class="dump-section">
+                    <div class="dump-header">
+                        <div>
+                            <h3>Research</h3>
+                            <p class="section-hint">Fetch a URL or run a search. Raw result and a Claude summary are both available to approve into context.</p>
+                        </div>
+                        <div class="button-row" style="align-items:center; gap: 0.5rem;">
+                            <span id="research-status-dot" class="dot red"></span>
+                            <span id="research-status-label" class="status-text">checking…</span>
+                        </div>
+                    </div>
+                    <div class="button-row" style="gap:0.5rem; flex-wrap:wrap;">
+                        <select id="research-mode" class="research-mode-select">
+                            <option value="url">URL</option>
+                            <option value="search">Search</option>
+                        </select>
+                        <input type="text" id="research-input" class="research-input" placeholder="https://…">
+                        <button id="btn-research-go" class="btn-primary btn-sm">Go</button>
+                    </div>
+                    <textarea id="research-raw-output" class="streaming-output" rows="8" readonly
+                        placeholder="Raw fetched content will appear here…" style="margin-top:0.5rem;"></textarea>
+                    <div id="research-approve-row" class="button-row mt-1" style="display:none;">
+                        <button id="btn-research-approve-raw" class="btn-success btn-sm">Approve Raw → Context</button>
                     </div>
 
+                    <!-- Paste fallback (shown when Tavily is blocked) -->
+                    <div id="research-paste-fallback" style="display:none;" class="paste-fallback">
+                        <p class="paste-fallback-msg">⚠ Tavily couldn't fetch that URL — the site may be login-walled or blocking scrapers. Paste the page content below and click Summarise.</p>
+                        <textarea id="research-paste-input" rows="10" placeholder="Paste article / page content here…"></textarea>
+                        <div class="button-row mt-1">
+                            <button id="btn-research-summarise-paste" class="btn-primary btn-sm">Summarise Pasted Content</button>
+                        </div>
+                    </div>
+                    <div id="research-summary-row" style="display:none; margin-top:0.75rem;">
+                        <p class="section-hint">Claude summary:</p>
+                        <textarea id="research-summary-output" class="streaming-output" rows="5" readonly
+                            placeholder="Summary will appear here…"></textarea>
+                        <div class="button-row mt-1">
+                            <button id="btn-research-approve-summary" class="btn-success btn-sm">Approve Summary → Context</button>
+                        </div>
+                    </div>
+                </div>
+
+                <hr>
+
+                <!-- Plot Generation (plotter/antagonist loop) -->
+                <div class="generation-controls">
+                    <h3>Plot Generation</h3>
                     <div class="button-row">
                         <button id="btn-generate-plot" class="btn-primary">Generate Plot</button>
                         <button id="btn-regenerate" class="btn-secondary" disabled>Regenerate</button>
                         <button id="btn-accept-plotter" class="btn-success" disabled>Accept Output</button>
-                        <button id="btn-edit-accept-plotter" class="btn-secondary" disabled>Edit & Accept</button>
+                        <button id="btn-edit-accept-plotter" class="btn-secondary" disabled>Edit</button>
                     </div>
-
                     <textarea id="plotter-output" class="streaming-output" rows="10" readonly
                         placeholder="Plotter output will appear here..."></textarea>
-
                     <div class="button-row mt-2">
-                        <button id="btn-run-antagonist" class="btn-danger" style="display: none;">Run
-                            Antagonist</button>
+                        <button id="btn-run-antagonist" class="btn-danger" style="display: none;">Run Antagonist</button>
                     </div>
-
-                    <textarea id="antagonist-output" class="streaming-output" rows="10" readonly
-                        placeholder="Antagonist output will appear here..." style="display: none;"></textarea>
-
+                    <textarea id="antagonist-output" class="streaming-output" rows="8" readonly
+                        placeholder="Antagonist critique will appear here..." style="display: none;"></textarea>
                     <div class="button-row mt-2">
-                        <button id="btn-run-revision" class="btn-primary" style="display: none;">Run Plotter
-                            Revision</button>
-                        <button id="btn-rerun-loop" class="btn-secondary" style="display: none;">Re-run Antagonist
-                            Loop</button>
-                        <button id="btn-accept-revision" class="btn-success" style="display: none;">Accept Revision as
-                            Final</button>
+                        <button id="btn-run-revision" class="btn-primary" style="display: none;">Run Plotter Revision</button>
+                        <button id="btn-rerun-loop" class="btn-secondary" style="display: none;">Re-run Antagonist Loop</button>
+                        <button id="btn-accept-revision" class="btn-success" style="display: none;">Accept Revision as Final</button>
+                        <button id="btn-edit-revision" class="btn-secondary" style="display: none;">Edit</button>
                     </div>
-
                     <textarea id="revision-output" class="streaming-output" rows="10" readonly
                         placeholder="Revision output will appear here..." style="display: none;"></textarea>
+
+                    <!-- Continuity Agent -->
+                    <div class="button-row mt-2">
+                        <button id="btn-run-continuity" class="btn-primary" style="display: none;">Run Continuity Agent</button>
+                    </div>
+                    <textarea id="continuity-output" class="streaming-output" rows="10" readonly
+                        placeholder="Continuity report will appear here..." style="display: none;"></textarea>
+                    <div class="button-row mt-2" id="phase-a-verdict" style="display: none;">
+                        <button id="btn-approve-phase-a" class="btn-success">✓ Approve → Phase B</button>
+                        <button id="btn-pass-back-plotter" class="btn-danger">↩ Pass Back to Plotter</button>
+                    </div>
+
+                    <!-- Premise Summariser (shown after approval) -->
+                    <div id="premise-summary-controls" style="display: none;">
+                        <div class="button-row mt-2">
+                            <button id="btn-summarise-premise" class="btn-secondary">Summarise Premise</button>
+                            <span id="premise-summary-status" class="status-text"></span>
+                        </div>
+                        <textarea id="premise-summary-output" class="streaming-output" rows="6" readonly
+                            placeholder="Compressed premise for Outliner/Drafter context..." style="display: none;"></textarea>
+                        <div id="premise-summary-action-row" class="button-row mt-1" style="display: none;">
+                            <button id="btn-edit-premise-summary" class="btn-secondary">Edit</button>
+                            <button id="btn-approve-premise-summary" class="btn-success">Approve → Context</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -146,6 +289,9 @@
             <div class="tab-content" id="tab-d" style="display: none;">
                 <h2>Phase D: Export (Coming soon)</h2>
             </div>
+            <div class="tab-content" id="tab-arch" style="display: none;">
+                <div id="architecture-container"></div>
+            </div>
         </section>
     </main>
 
@@ -172,12 +318,15 @@
     </div>
 
     <!-- Scripts -->
-    <script src="/static/js/context_panel.js"></script>
-    <script src="/static/js/llm_panel.js"></script>
-    <script src="/static/js/chapter_panel.js"></script>
-    <script src="/static/js/snapshot.js"></script>
-    <script src="/static/js/chapter_c_panel.js"></script>
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/context_panel.js?v=2"></script>
+    <script src="/static/js/dump_panel.js?v=2"></script>
+    <script src="/static/js/llm_panel.js?v=2"></script>
+    <script src="/static/js/chapter_panel.js?v=2"></script>
+    <script src="/static/js/snapshot.js?v=2"></script>
+    <script src="/static/js/chapter_c_panel.js?v=2"></script>
+    <script src="/static/js/architecture_panel.js?v=2"></script>
+    <script src="/static/js/research_panel.js?v=2"></script>
+    <script src="/static/js/app.js?v=2"></script>
 </body>
 
 </html>

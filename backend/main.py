@@ -6,10 +6,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 
-from backend.routers import project, llm, tokens
+from backend.routers import project, llm, tokens, architecture, research
 from backend.services.ollama_service import OllamaService
 
-load_dotenv()
+load_dotenv()                          # BookBot_08/.env
+load_dotenv(dotenv_path=r"E:\Coding\.env", override=False)  # shared key store
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -42,6 +43,8 @@ app.add_middleware(
 app.include_router(project.router)
 app.include_router(llm.router)
 app.include_router(tokens.router)
+app.include_router(architecture.router)
+app.include_router(research.router)
 
 # Mount frontend files
 app.mount("/static", StaticFiles(directory="frontend"), name="static")

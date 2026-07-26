@@ -15,23 +15,21 @@ window.Snapshot = {
         const finalName = prompt("Save project as:", filename);
         if (!finalName) return;
 
+        const dumpData = window.DumpPanel ? window.DumpPanel.exportForSnapshot() : {};
+        const llmData  = window.LLMPanel  ? window.LLMPanel.exportForSnapshot()  : {};
         const projectData = {
             id: window.currentProjectId || "",
             title: title,
-            genre: document.getElementById('setup-genre').value,
-            tone: document.getElementById('setup-tone').value,
-            audience: document.getElementById('setup-audience').value,
             target_word_count: parseInt(document.getElementById('setup-words').value) || 50000,
             target_chapter_count: parseInt(document.getElementById('setup-chapters').value) || 20,
             phase: "A",
             context_elements: window.ContextPanel.contextElements,
             chapters: window.ChapterPanel.chapters || [],
-            world_dict: {}, // Future
-            antagonist_rounds: parseInt(document.getElementById('antagonist-rounds').value) || 1,
-            model_name: window.currentModelName || "richardyoung/qwen3-14b-abliterated:Q5_K_M",
+            model_name: window.currentModelName || "claude-sonnet-5",
             created_at: window.currentProjectCreatedAt || new Date().toISOString(),
             updated_at: new Date().toISOString(),
-            snapshot_notes: ""
+            ...dumpData,
+            ...llmData
         };
 
         try {
@@ -95,12 +93,11 @@ window.Snapshot = {
         window.currentProjectCreatedAt = project.created_at;
 
         document.getElementById('project-title').value = project.title;
-        document.getElementById('setup-genre').value = project.genre || "";
-        document.getElementById('setup-tone').value = project.tone || "";
-        document.getElementById('setup-audience').value = project.audience || "";
         document.getElementById('setup-words').value = project.target_word_count || 50000;
         document.getElementById('setup-chapters').value = project.target_chapter_count || 20;
-        document.getElementById('antagonist-rounds').value = project.antagonist_rounds || 1;
+
+        if (window.DumpPanel) window.DumpPanel.loadFromSnapshot(project);
+        if (window.LLMPanel)  window.LLMPanel.loadFromSnapshot(project);
 
         window.ContextPanel.contextElements = project.context_elements || [];
         window.ContextPanel.renderContextPanel();
@@ -108,6 +105,7 @@ window.Snapshot = {
         if (window.ChapterPanel) {
             window.ChapterPanel.loadChapters(project.chapters);
         }
+        setTimeout(() => { if (window._resizeAllOutputs) window._resizeAllOutputs(); }, 50);
     },
 
     async newProject() {
