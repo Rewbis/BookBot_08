@@ -100,6 +100,7 @@ window.ChapterPanel = {
             const card = this.renderChapterCard(ch, idx);
             this.container.appendChild(card);
         });
+        if (window._resizeAllOutputs) window._resizeAllOutputs();
     },
 
     renderChapterCard(ch, index) {
@@ -150,9 +151,9 @@ window.ChapterPanel = {
                     }
                 </div>
                 
-                <textarea rows="8" class="skeleton-textarea ${ch.approved ? 'skeleton-approved' : ''}" 
-                    ${ch.approved ? 'readonly' : ''} 
-                    placeholder="Skeleton will appear here after generation..." 
+                <textarea rows="8" class="skeleton-textarea streaming-output ${ch.approved ? 'skeleton-approved' : ''}"
+                    ${ch.approved ? 'readonly' : ''}
+                    placeholder="Skeleton will appear here after generation..."
                     onchange="ChapterPanel.updateField('${ch.id}', 'skeleton', this.value)">${ch.skeleton}</textarea>
             `;
             div.appendChild(expDiv);

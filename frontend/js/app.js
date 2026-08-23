@@ -1,11 +1,39 @@
+// Defined at top level so mobile inline handlers can always reach it
+window._gotoTab = function(tabId) {
+    if (window.innerWidth <= 1024) {
+        // Mobile: all sections visible, just scroll to the right one
+        const el = document.getElementById(tabId);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const sel = document.getElementById('mobile-tab-select');
+        if (sel) sel.value = tabId;
+    } else {
+        // Desktop: normal tab switching
+        document.querySelectorAll('.tab-btn').forEach(x => {
+            x.classList.toggle('active', x.dataset.tab === tabId);
+        });
+        document.querySelectorAll('.tab-content').forEach(x => {
+            x.style.display = x.id === tabId ? 'block' : 'none';
+        });
+        const sel = document.getElementById('mobile-tab-select');
+        if (sel) sel.value = tabId;
+        if (tabId === 'tab-c' && window.ChapterCPanel) window.ChapterCPanel.renderAllChapters();
+        if (tabId === 'tab-arch' && window.ArchitecturePanel) window.ArchitecturePanel.init();
+    }
+};
+window._switchTab = function(t) {
+    if (!t || t.classList.contains('disabled')) return;
+    window._gotoTab(t.dataset.tab);
+};
+
 document.addEventListener('DOMContentLoaded', async () => {
     // 1. Initialize modules
-    window.ContextPanel.init();
-    window.DumpPanel.init();
-    window.LLMPanel.init();
-    window.ChapterPanel.init();
-    window.ChapterCPanel.init();
-    window.ResearchPanel.init();
+    const safeInit = (name, fn) => { try { fn(); } catch(e) { console.error(`${name} init failed:`, e); } };
+    safeInit('ContextPanel', () => window.ContextPanel.init());
+    safeInit('DumpPanel',    () => window.DumpPanel.init());
+    safeInit('LLMPanel',     () => window.LLMPanel.init());
+    safeInit('ChapterPanel', () => window.ChapterPanel.init());
+    safeInit('ChapterCPanel',() => window.ChapterCPanel.init());
+    safeInit('ResearchPanel',() => window.ResearchPanel.init());
 
     // 2. Bind top-level buttons
     document.getElementById('btn-new-project').addEventListener('click', () => window.Snapshot.newProject());
@@ -25,22 +53,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 3. Setup tabs
     const tabs = document.querySelectorAll('.tab-btn');
     const contents = document.querySelectorAll('.tab-content');
-    tabs.forEach(t => {
-        t.addEventListener('click', () => {
-            if (t.classList.contains('disabled')) return;
-            tabs.forEach(x => x.classList.remove('active'));
-            contents.forEach(x => x.style.display = 'none');
-            
-            t.classList.add('active');
-            document.getElementById(t.dataset.tab).style.display = 'block';
-            if (t.dataset.tab === 'tab-c') {
-                window.ChapterCPanel.renderAllChapters();
-            }
-            if (t.dataset.tab === 'tab-arch') {
-                window.ArchitecturePanel.init();
-            }
-        });
-    });
+    tabs.forEach(t => t.addEventListener('click', () => window._switchTab(t)));
+
 
     // 3b. Resizable panel divider
     (function () {
@@ -59,27 +73,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         const saved = localStorage.getItem('bb8-panel-split');
         if (saved) apply(parseFloat(saved));
 
-        divider.addEventListener('mousedown', e => {
+        const startDrag = e => {
             dragging = true;
             divider.classList.add('is-dragging');
-            document.body.style.cursor    = 'col-resize';
+            document.body.style.cursor     = 'col-resize';
             document.body.style.userSelect = 'none';
             e.preventDefault();
-        });
-
-        document.addEventListener('mousemove', e => {
+        };
+        const moveDrag = e => {
             if (!dragging) return;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const rect = container.getBoundingClientRect();
-            apply(clamp((e.clientX - rect.left) / rect.width * 100));
-        });
-
-        document.addEventListener('mouseup', () => {
+            apply(clamp((clientX - rect.left) / rect.width * 100));
+        };
+        const endDrag = () => {
             if (!dragging) return;
             dragging = false;
             divider.classList.remove('is-dragging');
-            document.body.style.cursor    = '';
+            document.body.style.cursor     = '';
             document.body.style.userSelect = '';
-        });
+        };
+
+        divider.addEventListener('mousedown',  startDrag);
+        divider.addEventListener('touchstart', startDrag, { passive: false });
+        document.addEventListener('mousemove',  moveDrag);
+        document.addEventListener('touchmove',  moveDrag, { passive: false });
+        document.addEventListener('mouseup',    endDrag);
+        document.addEventListener('touchend',   endDrag);
     })();
 
     // 3c. Position fixed tooltip on hover (escapes overflow-y:auto scroll container)
@@ -162,5 +182,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.Snapshot.repopulateUI(project);
     } catch (e) {
         console.error("Failed to init project", e);
+    }
+
+    // 7. On mobile: show all sections as one long page
+    const isMobile = window.innerWidth <= 1024;
+    if (isMobile) {
+        document.querySelectorAll('.tab-content').forEach(el => {
+            el.style.removeProperty('display');
+        });
+        if (window.ChapterCPanel) window.ChapterCPanel.renderAllChapters();
+        if (window.ArchitecturePanel) window.ArchitecturePanel.init();
     }
 });

@@ -57,18 +57,65 @@ window.Snapshot = {
             if (files.length === 0) {
                 listEl.innerHTML = '<p>No saved projects found.</p>';
             } else {
+                // Group by base name (strip trailing _YYYYMMDD_HHMM before .json)
+                const groups = {};
+                const datePattern = /_\d{8}_\d{4}(\.json)$/;
                 files.forEach(f => {
-                    const btn = document.createElement('button');
-                    btn.className = 'full-width-btn mb-1';
-                    btn.innerText = `${f.filename} (${new Date(f.modified_date).toLocaleString()})`;
-                    btn.onclick = () => this.loadSpecificProject(f.filename);
-                    listEl.appendChild(btn);
+                    const base = f.filename.replace(datePattern, '').replace(/\.json$/, '');
+                    if (!groups[base]) groups[base] = [];
+                    groups[base].push(f);
+                });
+
+                // Sort each group newest-first
+                Object.values(groups).forEach(g => g.sort((a, b) => new Date(b.modified_date) - new Date(a.modified_date)));
+
+                const groupNames = Object.keys(groups).sort();
+                groupNames.forEach(base => {
+                    const saves = groups[base];
+                    const label = base.replace(/^bookbot_/, '').replace(/_/g, ' ');
+
+                    const groupDiv = document.createElement('div');
+                    groupDiv.className = 'load-group';
+
+                    const header = document.createElement('button');
+                    header.className = 'load-group-header';
+                    header.innerHTML = `<span class="load-group-label">${label}</span><span class="load-group-meta">${saves.length} save${saves.length > 1 ? 's' : ''}</span><span class="load-group-arrow">▶</span>`;
+
+                    const body = document.createElement('div');
+                    body.className = 'load-group-body';
+                    body.style.display = 'none';
+
+                    saves.forEach(f => {
+                        const btn = document.createElement('button');
+                        btn.className = 'load-save-btn';
+                        btn.innerText = new Date(f.modified_date).toLocaleString();
+                        btn.onclick = () => this.loadSpecificProject(f.filename);
+                        body.appendChild(btn);
+                    });
+
+                    header.addEventListener('click', () => {
+                        const open = body.style.display !== 'none';
+                        body.style.display = open ? 'none' : 'block';
+                        header.querySelector('.load-group-arrow').textContent = open ? '▶' : '▼';
+                    });
+
+                    // Auto-expand if only one group
+                    if (groupNames.length === 1) {
+                        body.style.display = 'block';
+                        header.querySelector('.load-group-arrow').textContent = '▼';
+                    }
+
+                    groupDiv.appendChild(header);
+                    groupDiv.appendChild(body);
+                    listEl.appendChild(groupDiv);
                 });
             }
             document.getElementById('load-modal').style.display = 'flex';
         } catch (e) {
             console.error(e);
-            alert("Error listing projects.");
+            const listEl = document.getElementById('load-project-list');
+            if (listEl) listEl.innerHTML = `<p style="color:#e63946;">Error: ${e.message}</p>`;
+            document.getElementById('load-modal').style.display = 'flex';
         }
     },
 

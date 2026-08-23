@@ -28,6 +28,9 @@ header {
     padding: 10px 20px;
     background-color: var(--panel-bg);
     border-bottom: 1px solid var(--border-color);
+    position: relative;
+    z-index: 10;
+    flex-shrink: 0;
 }
 
 .header-left, .header-right {
@@ -233,6 +236,8 @@ button {
     font-weight: bold;
     background-color: var(--btn-secondary);
     transition: filter 0.2s;
+    touch-action: manipulation; /* eliminates 300ms tap delay on Android */
+    -webkit-tap-highlight-color: rgba(255,255,255,0.1);
 }
 button:hover:not(:disabled) {
     filter: brightness(1.1);
@@ -251,7 +256,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     line-height: 1.75;
     margin-top: 10px;
     width: 100%;
-    resize: none;
+    resize: vertical;
     overflow: hidden;
     min-height: 5em;
     box-sizing: border-box;
@@ -274,8 +279,34 @@ hr { border: 0; border-top: 1px solid var(--border-color); margin: 20px 0; }
     border-radius: 8px;
     width: 600px;
     max-width: 90%;
+    max-height: 85vh;
+    overflow-y: auto;
 }
 .modal-buttons { margin-top: 15px; display: flex; justify-content: flex-end; gap: 10px; }
+
+#load-project-list { max-height: 60vh; overflow-y: auto; margin-top: 10px; }
+
+.load-group { margin-bottom: 6px; border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden; }
+
+.load-group-header {
+    width: 100%; display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; background: var(--btn-secondary);
+    border: none; border-radius: 0; color: var(--text-color);
+    cursor: pointer; font-size: 0.95rem; text-align: left;
+}
+.load-group-header:hover { background: #5a5e79; }
+.load-group-label { flex: 1; font-weight: 600; text-transform: capitalize; }
+.load-group-meta { font-size: 0.8rem; color: #aaa; }
+.load-group-arrow { font-size: 0.75rem; color: #aaa; margin-left: 4px; }
+
+.load-group-body { padding: 4px 8px 6px; background: var(--bg-color); }
+
+.load-save-btn {
+    width: 100%; text-align: left; padding: 6px 10px; margin: 2px 0;
+    background: transparent; border: 1px solid var(--border-color);
+    border-radius: 4px; color: var(--text-color); cursor: pointer; font-size: 0.9rem;
+}
+.load-save-btn:hover { background: var(--btn-primary); border-color: var(--accent-color); }
 
 /* Phase B */
 .context-item[data-phase="B"] { background-color: #1a2a3a; border-color: #3a6a9a; }
@@ -707,6 +738,92 @@ thead .field-col { z-index: 3; }
     text-align: left !important;
     padding: 6px 10px;
     border-top: 2px solid var(--border-color);
+}
+
+/* Mobile tab dropdown — hidden on desktop */
+.mobile-tab-select { display: none; }
+
+/* ── Mobile layout (≤768px) ──────────────────────────────────────── */
+@media (max-width: 1024px) {
+    body { height: auto; min-height: 100vh; }
+
+    header { flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
+    .header-left h1 { font-size: 1.1rem; }
+
+    /* Stack context panel above work panel; page scrolls, not inner panels */
+    body { overflow-y: auto; }
+    .container {
+        display: flex;
+        flex-direction: column;
+        overflow: visible;
+        height: auto;
+    }
+    .resize-divider { display: none; }
+    aside.context-panel {
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+        padding: 12px;
+        overflow-y: visible;
+        max-height: none;
+    }
+    .work-panel {
+        padding: 12px;
+        overflow-y: visible;
+        height: auto;
+    }
+    .tab-content { overflow-y: visible; }
+
+    /* Hide tab bar, show dropdown instead */
+    .tabs { display: none; }
+    .mobile-tab-select {
+        display: block;
+        background: var(--btn-primary);
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        padding: 6px 10px;
+        font-size: 0.85rem;
+        font-weight: bold;
+        touch-action: manipulation;
+    }
+    /* All sections visible as one long page */
+    .tab-content {
+        display: block !important;
+        border-top: 2px solid var(--border-color);
+        padding-top: 12px;
+        margin-top: 8px;
+    }
+    /* Section anchors need scroll padding so header doesn't cover them */
+    #tab-a, #tab-b, #tab-c, #tab-d, #tab-arch {
+        scroll-margin-top: 60px;
+    }
+
+    /* Larger tap targets on buttons */
+    button { min-height: 40px; }
+
+    /* Prevent auto-zoom on input focus (triggered when font-size < 16px) */
+    input, textarea, select { font-size: 16px !important; }
+    .btn-sm { min-height: 34px; }
+    .card-btn { min-height: 36px; min-width: 36px; font-size: 1.1rem; }
+
+    /* Chapter top-bar: wrap onto two lines */
+    .chapter-card .top-bar { flex-wrap: wrap; gap: 6px; }
+
+    /* Modals: full width */
+    .modal-content { width: 95%; padding: 14px; }
+
+    /* Phase B/C controls: stack */
+    .phase-b-controls, .phase-c-controls { flex-wrap: wrap; gap: 8px; }
+
+    /* Dump header: stack label above buttons */
+    .dump-header { flex-direction: column; align-items: flex-start; }
+    .slot-header { flex-direction: column; align-items: flex-start; }
+
+    /* Metadata row: stack */
+    .metadata-row { flex-direction: column; gap: 10px; }
+
+    /* Streaming outputs: allow scroll on mobile rather than unbounded height */
+    .streaming-output { max-height: 60vh; overflow-y: auto; resize: none; }
 }
 
 /* CRUD cell operation badges */

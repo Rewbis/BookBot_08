@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BookBot 08</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/style.css?v=3">
 </head>
 
 <body>
@@ -15,9 +15,15 @@
             <input type="text" id="project-title" value="New Project" class="editable-title">
         </div>
         <div class="header-right">
-            <button id="btn-new-project">New</button>
-            <button id="btn-load-project">Load</button>
-            <button id="btn-save-project">Save</button>
+            <button id="btn-new-project" class="btn-secondary" onclick="window.Snapshot&&window.Snapshot.newProject()">New</button>
+            <button id="btn-load-project" class="btn-secondary" onclick="window.Snapshot && window.Snapshot.loadProject()">Load</button>
+            <button id="btn-save-project" class="btn-primary" onclick="window.Snapshot&&window.Snapshot.saveProject()">Save</button>
+            <select id="mobile-tab-select" class="mobile-tab-select" onchange="window._gotoTab(this.value);this.blur()">
+                <option value="tab-a">Phase A</option>
+                <option value="tab-b">Phase B</option>
+                <option value="tab-c">Phase C</option>
+                <option value="tab-arch">Architecture</option>
+            </select>
             <div class="status-indicator">
                 <span id="ollama-status-dot" class="dot red"></span> Ollama
             </div>
@@ -318,15 +324,15 @@
     </div>
 
     <!-- Scripts -->
-    <script src="/static/js/context_panel.js?v=2"></script>
-    <script src="/static/js/dump_panel.js?v=2"></script>
-    <script src="/static/js/llm_panel.js?v=2"></script>
-    <script src="/static/js/chapter_panel.js?v=2"></script>
-    <script src="/static/js/snapshot.js?v=2"></script>
-    <script src="/static/js/chapter_c_panel.js?v=2"></script>
-    <script src="/static/js/architecture_panel.js?v=2"></script>
-    <script src="/static/js/research_panel.js?v=2"></script>
-    <script src="/static/js/app.js?v=2"></script>
+    <script src="/static/js/context_panel.js?v=3"></script>
+    <script src="/static/js/dump_panel.js?v=3"></script>
+    <script src="/static/js/llm_panel.js?v=3"></script>
+    <script src="/static/js/chapter_panel.js?v=3"></script>
+    <script src="/static/js/snapshot.js?v=3"></script>
+    <script src="/static/js/chapter_c_panel.js?v=3"></script>
+    <script src="/static/js/architecture_panel.js?v=3"></script>
+    <script src="/static/js/research_panel.js?v=3"></script>
+    <script src="/static/js/app.js?v=3"></script>
 </body>
 
 </html>
