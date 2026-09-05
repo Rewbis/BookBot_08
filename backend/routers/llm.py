@@ -10,6 +10,7 @@ from backend.services.claude_service import ClaudeService
 from backend.utils.llm_json import parse_json_response
 from backend.utils.model_config import get_model_config
 from backend.utils.voices import build_voices_block, voices_for_chapter
+from backend.utils.story_state import build_state_block, normalise_story_state
 
 router = APIRouter(prefix="/api/llm", tags=["llm"])
 ollama_service = OllamaService()
@@ -77,6 +78,18 @@ class ChapterWriteRequest(BaseModel):
     clues_due: List[dict] = []
     # All voice profiles; the stage active for chapter_number is selected server-side.
     voice_profiles: List[dict] = []
+    # Story state at the end of the previous chapter (canon for this one); {} for chapter 1.
+    prior_state: dict = {}
+    project_title: str = "unknown"
+
+class ChapterContinuityRequest(BaseModel):
+    context_elements: List[ContextElementBase]
+    chapter_number: int
+    chapter_title: str
+    chapter_text: str
+    prior_state: dict = {}
+    planted_clues: List[dict] = []
+    clues_due: List[dict] = []
     project_title: str = "unknown"
 
 class ParseDumpRequest(BaseModel):
@@ -284,6 +297,10 @@ async def run_chapter_draft(req: ChapterWriteRequest):
         "plants woven in naturally, payoffs resolved on the page.\n"
         "If a 'Character Voices' section is present, it governs how those characters speak and think "
         "in this chapter — including the [DIALOGUE: ...] intents you write for them.\n"
+        "If a 'Story State Before This Chapter' section is present, it is canon: characters know only "
+        "what it says they know, are where it says they are, and carry the conditions, possessions, "
+        "and relationships listed. Open threads are promises to the reader — advance or honour them, "
+        "never forget them.\n"
         f"Target length: approximately {req.target_words_per_chapter} words.\n"
         "Return ONLY the chapter prose. No commentary, no headers."
     )
@@ -292,6 +309,7 @@ async def run_chapter_draft(req: ChapterWriteRequest):
         user_msg += f"## Chapter {summary.get('number')} Summary: {summary.get('title')}\n{summary.get('summary')}\n\n"
     if req.preceding_chapter_tail:
         user_msg += f"## End of Previous Chapter\n{req.preceding_chapter_tail}\n\n"
+    user_msg += build_state_block(req.prior_state)
     user_msg += build_clues_due_block(req.clues_due)
     user_msg += build_voices_block(voices_for_chapter(req.voice_profiles, req.chapter_number))
     user_msg += f"## Chapter to Write\nChapter {req.chapter_number}: {req.chapter_title}\n\nSkeleton:\n{req.chapter_skeleton}\n"
@@ -345,12 +363,16 @@ async def run_chapter_critic(req: ChapterWriteRequest):
         "If a 'Clues Due In This Chapter' section is present, check each item: state whether it "
         "was planted or paid off in the draft, and flag any that are missing or too heavy-handed. "
         "If a 'Character Voices' section is present, quote any line that breaks a character's voice. "
+        "If a 'Story State Before This Chapter' section is present, treat it as canon and flag any "
+        "contradiction: knowledge a character could not have, an impossible location, a vanished "
+        "injury or possession, a broken world fact. "
         "List your critiques clearly and concisely."
     )
     user_msg = build_user_message(req.context_elements)
     for summary in req.prior_chapter_summaries:
         user_msg += f"## Chapter {summary.get('number')} Summary: {summary.get('title')}\n{summary.get('summary')}\n\n"
 
+    user_msg += build_state_block(req.prior_state)
     user_msg += build_clues_due_block(req.clues_due)
     user_msg += build_voices_block(voices_for_chapter(req.voice_profiles, req.chapter_number))
     user_msg += f"## Chapter Draft\n{req.current_draft}\n"
@@ -414,6 +436,72 @@ async def run_chapter_summary(req: ChapterWriteRequest):
     
     result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
+
+@router.post("/chapter-continuity")
+async def run_chapter_continuity(req: ChapterContinuityRequest):
+    """
+    Per-chapter continuity: check the chapter against the state at the end of the
+    previous chapter, verify the clues due, and emit the state at the end of this one.
+    """
+    clues_json = json.dumps(req.planted_clues, indent=1, ensure_ascii=False) if req.planted_clues else "[]"
+    sys_prompt = (
+        "You are a continuity editor for a novel in progress. You receive: the story state as it "
+        "stood at the END of the previous chapter (canonical — every fact in it is established), "
+        "the full text of the chapter just written, the planted-clue list with where each is meant "
+        "to be planted and paid off, and the clues that were due in this chapter.\n\n"
+        "Do four things:\n"
+        "1. CHECK the chapter against the prior state. Flag every contradiction: a character knowing "
+        "something they had no way to learn, being somewhere they could not be, an injury, illness, "
+        "or possession that vanished or reappeared, a relationship that reset, a world fact broken, "
+        "a timeline impossibility. Quote the offending passage in each issue.\n"
+        "2. CHECK the clues due: confirm each was planted or paid off in this chapter. For every "
+        "clue in the list, decide whether this chapter has made it impossible ('blocked', say why) "
+        "or it remains viable ('active').\n"
+        "3. PRODUCE the story state at the END of this chapter. Start from the prior state, carry "
+        "everything forward, update what this chapter changed, add what it established. Be concrete "
+        "and factual: location; what each character now knows (as a list of facts); what they want; "
+        "condition (injuries, health, status); possessions; relationships; open threads (promises to "
+        "the reader still unpaid); world facts. Keep it compact — this is reference data, not prose.\n"
+        "4. VERDICT: 'approve' if the chapter is consistent with canon, 'revise' if any contradiction "
+        "must be fixed before moving on.\n\n"
+        "Return ONLY a valid JSON object — no markdown, no code fences:\n"
+        "{\n"
+        '  "verdict": "approve" | "revise",\n'
+        '  "summary": "2-3 sentence assessment",\n'
+        '  "issues": ["specific issue with quoted passage", ...],\n'
+        '  "clue_updates": [{"id": "clue_id", "status": "active|blocked", "notes": "reason"}],\n'
+        '  "story_state": {\n'
+        f'    "chapter": {req.chapter_number},\n'
+        '    "timeline": "in-story time at chapter end",\n'
+        '    "characters": {"Name": {"location": "", "knows": [], "wants": "", "condition": "", '
+        '"possessions": [], "relationships": {"Other": ""}}},\n'
+        '    "open_threads": [],\n'
+        '    "clues": {"clue_id": {"status": "unplanted|planted|paid_off|blocked", "note": ""}},\n'
+        '    "world_facts": []\n'
+        "  }\n"
+        "}"
+    )
+    user_msg = build_user_message(req.context_elements)
+    prior_block = build_state_block(req.prior_state)
+    user_msg += prior_block if prior_block else "## Story State Before This Chapter\nFirst chapter — no prior state.\n\n"
+    user_msg += f"## Planted Clues (plan)\n```json\n{clues_json}\n```\n\n"
+    user_msg += build_clues_due_block(req.clues_due)
+    user_msg += f"## Chapter {req.chapter_number}: {req.chapter_title}\n{req.chapter_text}\n"
+
+    messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": user_msg},
+    ]
+    raw = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    data = parse_json_response(raw)
+    return {
+        "verdict": data.get("verdict", ""),
+        "summary": data.get("summary", ""),
+        "issues": data.get("issues") or [],
+        "clue_updates": data.get("clue_updates") or [],
+        "story_state": normalise_story_state(data.get("story_state"), req.chapter_number),
+    }
+
 
 @router.post("/continuity")
 async def run_continuity(req: ContinuityRequest):

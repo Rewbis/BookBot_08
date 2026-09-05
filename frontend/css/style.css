@@ -673,6 +673,26 @@ hr { border: 0; border-top: 1px solid var(--border-color); margin: 20px 0; }
 .voice-range-hint { color: #666; font-size: 0.72rem; }
 .voice-text { width: 100%; box-sizing: border-box; font-size: 0.85rem; min-height: 4em; }
 
+/* Per-chapter continuity (Phase C card) */
+.continuity-subsection { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.cont-badge {
+    font-size: 0.72rem; padding: 2px 7px; border-radius: 10px; white-space: nowrap;
+    border: 1px solid transparent;
+}
+.cont-badge.ok    { color: #2ea043; border-color: #2ea043; }
+.cont-badge.warn  { color: #f0a500; border-color: #f0a500; }
+.cont-badge.none  { color: #888;    border-color: #444; }
+.cont-badge.stale { color: #e0a0ff; border-color: #a06ad0; }
+.state-details summary { cursor: pointer; color: #bbb; font-size: 0.85rem; user-select: none; }
+.state-json {
+    width: 100%; box-sizing: border-box; margin-top: 6px;
+    font-family: monospace; font-size: 0.78rem; line-height: 1.45;
+    background: #0d1117; color: #cde; border: 1px solid #334; border-radius: 4px; padding: 8px;
+    resize: vertical;
+}
+.state-json-msg { margin-top: 4px; }
+.state-json-msg.err { color: var(--btn-danger); }
+
 /* ── Architecture Tab ────────────────────────────────────────────── */
 #architecture-container {
     padding: 4px 0 40px;

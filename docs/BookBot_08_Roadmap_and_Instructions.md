@@ -37,6 +37,7 @@ BookBot_08/
 │       ├── llm_json.py          # parse_json_response(): strips ```json fences, json.loads
 │       ├── model_config.py      # GET /api/llm/config payload: model, context window, warn threshold, $/MTok
 │       ├── voices.py            # stage_for_chapter / voices_for_chapter / build_voices_block
+│       ├── story_state.py       # per-chapter story state: normalise, has_content, build_state_block
 │       ├── logger.py            # per-call JSON logs to /logs/
 │       ├── snapshot.py          # save/load/suggest_filename
 │       └── usage_tracker.py     # session token + USD accumulator (Claude vs local)
@@ -162,10 +163,14 @@ Voices are **not** context elements. Phase C sends the full `voice_profiles` lis
 ### Phase C — Chapter Writing (as built)
 
 ```
-Draft (Pass 1) → Enrich (Pass 2) → Summarise-enrich → Critic (3a) → Polish (3b) → Summary
+Draft (Pass 1) → Enrich (Pass 2) → Summarise-enrich → Critic (3a) → Polish (3b) → Summary → Continuity
+                                                                                              ↓
+                          [Human reads / edits full_text] → Re-run Critic (→ Polish → Continuity again)
 ```
 
-All Phase C endpoints share `ChapterWriteRequest`: `context_elements`, `prior_chapter_summaries[{number,title,summary}]`, `preceding_chapter_tail`, `chapter_number`, `chapter_title`, `chapter_skeleton`, `current_draft`, `critic_feedback`, `target_words_per_chapter`, `clues_due[{label,description,role}]`, `voice_profiles[]`.
+All Phase C endpoints share `ChapterWriteRequest`: `context_elements`, `prior_chapter_summaries[{number,title,summary}]`, `preceding_chapter_tail`, `chapter_number`, `chapter_title`, `chapter_skeleton`, `current_draft`, `critic_feedback`, `target_words_per_chapter`, `clues_due[{label,description,role}]`, `voice_profiles[]`, `prior_state{}`.
+
+**Per-chapter continuity and story state.** Every chapter carries `story_state` — the canonical world at the *end* of that chapter (per character: location, `knows[]`, wants, condition, possessions, relationships; `open_threads[]`; `clues{}` lifecycle `unplanted|planted|paid_off|blocked`; `world_facts[]`). Chapter N's Draft and Critic receive chapter N−1's state as a *Story State Before This Chapter* block and are told it is canon. `POST /chapter-continuity` (`context_elements`, `chapter_number/title`, `chapter_text`, `prior_state`, `planted_clues`, `clues_due`) checks the chapter against the prior state (quoting contradictions), verifies the clues due, applies `clue_updates` to the planted-clue list, and returns `story_state` for the end of this chapter plus a verdict. It runs automatically after Generate Chapter and after Re-run Critic, and on demand via **Run Continuity**. Because each chapter owns its own state, rewriting chapter 5 recomputes only state 5; chapters 6+ get a ⏳ **stale** badge and the human chooses what to re-run — nothing regenerates on its own. Editing a chapter's text by hand also flags it stale. The state JSON is editable in the card (invalid JSON is refused); a hand edit flags later chapters stale too. Prior state for chapter N = the nearest earlier chapter that has a state, so gaps are tolerated.
 
 | Endpoint | Reads | Output |
 |---|---|---|
@@ -174,7 +179,8 @@ All Phase C endpoints share `ChapterWriteRequest`: `context_elements`, `prior_ch
 | `/chapter-summarise-enrich` | `enrich_draft` | 80–120 word summary → `chapter.enrich_draft_summary` |
 | `/chapter-critic` | context, prior summaries, `current_draft`, previous `critic_feedback` | Critique |
 | `/chapter-polish` | context, `current_draft`, `critic_feedback` | Final prose |
-| `/chapter-summary` | `current_draft` | 100–150 words → `chapter.summary` |
+| `/chapter-summary` | `current_draft` | 200–300 words → `chapter.summary` (events, what each character knows/wants/where they are, condition, clues planted or paid off) |
+| `/chapter-continuity` | context, `chapter_text`, `prior_state`, `planted_clues`, `clues_due` | `{verdict, summary, issues[], clue_updates[], story_state}` |
 
 - *Generate Chapter* runs the whole chain once (critic/polish × 1). *Re-run Critic* runs critic + polish again on the current text.
 - `target_words_per_chapter` = target words ÷ target chapters.
@@ -201,6 +207,7 @@ All Phase C endpoints share `ChapterWriteRequest`: `context_elements`, `prior_ch
 **`Chapter`**
 - Phase B: `title`, `intention`, `scene_notes`, `skeleton`, `approved`, `status`
 - Phase C: `draft_text`, `enrich_draft`, `enrich_draft_summary`, `critic_output`, `polish_draft`, `full_text`, `summary`, `phase_c_status`
+- Continuity: `story_state{}`, `continuity_report` (JSON string), `continuity_verdict`, `state_stale`, `state_computed_at`
 - Reserved / unused: `has_explicit_content`, `explicit_review_notes`
 
 Note: `Chapter.approved` is set by both Phase B (skeleton approved) and Phase C (prose approved / bulk generate). The two phases share one flag.
@@ -233,8 +240,10 @@ The matrix includes a `local_explicit` column and `has_explicit_content` / `expl
 cd E:\Coding\BookBot_08 && .venv\Scripts\python.exe -m pytest -q
 ```
 
-35 tests (as of 2026-09-05), no network, no API keys:
+44 tests (as of 2026-09-05), no network, no API keys:
 - `test_model_config.py` — `/api/llm/config` defaults and env overrides
+- `test_story_state.py` — state normalisation (missing/wrong-typed keys, extras kept), `has_content`, prompt block
+- `test_snapshot.py` also covers chapter continuity fields and legacy chapters without them
 - `test_voices.py` — stage selection (range, open-ended, gaps, before-first), empty voices skipped, prompt block format
 - `test_snapshot.py` — filename sanitising, save/load round-trip of all Phase A fields, legacy snapshots without new fields
 - `test_project_api.py` — `/api/project` new/save/list/load/suggest-filename via `TestClient` with `PROJECTS_DIR` pointed at a temp dir
@@ -265,9 +274,9 @@ Creative dump → parse → slot review → research → plotter/antagonist/revi
 ### Phase B — Chapter Outlines ✅
 Chapter cards (add above/below, reorder, delete with undo), per-chapter intention + scene notes, Generate Skeleton, Generate Chapter Plan (seeded), approve to context.
 
-### Phase C — Chapter Writing ✅ (with gaps)
-Draft → enrich → critic → polish → summary per chapter; re-run critic; bulk generate.
-Gaps: no local `[EXPLICIT]` fill; bulk mode has no human gate; `approved` flag shared with Phase B.
+### Phase C — Chapter Writing ✅
+Draft → enrich → critic → polish → summary → continuity per chapter; human edit then re-run critic; per-chapter story state with stale flagging; clue scheduling; character voices by life stage; style guide. Bulk generate (intentionally ungated — for when the mood is "just write it").
+Gaps: no local `[EXPLICIT]` fill; `approved` flag shared with Phase B.
 
 ### Local explicit-content pass ❌ not built
 Design: drafter emits `[EXPLICIT: …]`, `qwen3-14b-abliterated` via Ollama fills them, `has_explicit_content` flags the chapter, Critic reviews and writes `explicit_review_notes`. Needs: placeholder instruction in the drafter prompt, an `/api/llm/local-explicit` endpoint calling `ollama_service.generate()` + `strip_thinking()`, a step in `chapter_c_panel.generateChapter()` between draft and enrich, and Critic prompt awareness of the flag.
@@ -294,8 +303,9 @@ Cover blurb, illustration prompts per chapter, EPUB via `ebooklib`, KDP validati
 ## KNOWN LIMITATIONS / NEXT STEPS
 
 - Local explicit-content pass is unimplemented; the hybrid-model design is aspirational until then.
-- Bulk Generate auto-approves; no pause-for-review between chapters.
-- Character state (knowledge, injuries, location) is not tracked between chapters beyond the free-text summary — per-chapter continuity/state is the next planned feature.
+- Bulk Generate auto-approves; no pause-for-review between chapters (by choice).
+- Story state is only as good as the continuity agent's extraction; it is human-editable per chapter for that reason. Stale chapters are flagged, never auto-regenerated.
+- Prompt caching is not yet used: the context block is identical across the ~7 calls of a chapter run and a cache breakpoint on it would cut input cost by roughly 90% on the repeats.
 - Context window is a flat ordered list — nothing is retrieved per-chapter by relevance; everything enabled goes into every call.
 - Token counter is a cl100k approximation.
 - Frontend has no automated tests.

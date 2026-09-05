@@ -145,6 +145,16 @@ crud_matrix:
       model: claude-sonnet-5
       num_ctx: API
 
+    - id: continuity_chapter
+      label: "Continuity\n(per chapter)"
+      model: claude-sonnet-5
+      num_ctx: API
+
+    - id: human_phase_c
+      label: "Human\n(Phase C)"
+      model: "—"
+      num_ctx: "—"
+
   groups:
 
     - label: "BookProject — project-level fields"
@@ -279,6 +289,7 @@ crud_matrix:
             human_slots:   "U"
             continuity:    "R,U"
             human_phase_a: "U"
+            continuity_chapter: "R,U"
 
         - field: plotter_output
           desc: "World dict + plot overview produced by Plotter. Persisted in snapshot."
@@ -339,6 +350,7 @@ crud_matrix:
             summariser_enrich: "R"
             critic:            "R"
             polish:            "R"
+            continuity_chapter: "R"
 
     - label: "Chapter — per-chapter fields"
       rows:
@@ -413,6 +425,38 @@ crud_matrix:
           cells:
             summariser_chapter: "C,U"
             drafter:            "R"
+
+        - field: chapter.full_text
+          desc: >
+            The chapter as it stands: set from polish_draft, then human-edited. Once the human
+            has touched it, it is the source of truth for Re-run Critic and Continuity.
+          cells:
+            polish:             "C"
+            human_phase_c:      "U"
+            summariser_chapter: "R"
+            continuity_chapter: "R"
+
+        - field: chapter.story_state
+          desc: >
+            Canonical world state at the END of this chapter: per character location / knows /
+            wants / condition / possessions / relationships; open threads; clue lifecycle; world
+            facts. Chapter N's Drafter and Critic read chapter N-1's state. Recomputed whenever
+            this chapter's text changes; later chapters are flagged stale, not regenerated.
+            Human-editable JSON in the Phase C card.
+          cells:
+            continuity_chapter: "C,U"
+            human_phase_c:      "U"
+            drafter:            "R"
+            critic:             "R"
+
+        - field: "chapter.continuity_report / continuity_verdict / state_stale"
+          desc: >
+            Last per-chapter continuity response (JSON), its verdict (approve | revise), and
+            whether the state is stale because this chapter's text or an earlier chapter's
+            state changed since it ran.
+          cells:
+            continuity_chapter: "C,U"
+            human_phase_c:      "R,U"
 
         - field: chapter.phase_c_status
           desc: "not_started | drafting | enriching | critiquing | polishing | done"
@@ -583,6 +627,14 @@ model_routing:
       phase_c3b: "—"
 
     - agent: Polish
+      phase_a:   "—"
+      phase_b:   "—"
+      phase_c1:  "—"
+      phase_c2:  "—"
+      phase_c3a: "—"
+      phase_c3b: claude-sonnet-5
+
+    - agent: "Continuity (per chapter, after polish)"
       phase_a:   "—"
       phase_b:   "—"
       phase_c1:  "—"

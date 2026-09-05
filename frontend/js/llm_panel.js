@@ -1,3 +1,22 @@
+// Shared by the Phase A continuity agent and the per-chapter continuity in Phase C.
+window.formatContinuityReport = function (data) {
+    if (!data) return '';
+    const verdict = data.verdict === 'approve' ? '✅ APPROVE'
+                  : data.verdict === 'revise'  ? '⚠️ REVISE'
+                  : '— NO VERDICT';
+    let out = `VERDICT: ${verdict}\n\n${data.summary || ''}`;
+    if (data.issues?.length) {
+        out += `\n\nISSUES TO ADDRESS:\n${data.issues.map((i, n) => `${n + 1}. ${i}`).join('\n')}`;
+    }
+    if (data.clue_updates?.length) {
+        out += `\n\nCLUE STATUS UPDATES:`;
+        data.clue_updates.forEach(u => {
+            out += `\n• [${String(u.status || '').toUpperCase()}] ${u.id}: ${u.notes || ''}`;
+        });
+    }
+    return out;
+};
+
 window.LLMPanel = {
     plotterOutput: "",
     antagonistOutput: "",
@@ -248,19 +267,7 @@ window.LLMPanel = {
             const data = await res.json();
             this.continuityData = data;
 
-            // Apply clue updates to DumpPanel
-            if (data.clue_updates?.length && window.DumpPanel) {
-                data.clue_updates.forEach(upd => {
-                    const clue = window.DumpPanel.plantedClues.find(c => c.id === upd.id);
-                    if (clue) {
-                        clue.status = upd.status;
-                        clue.description = upd.notes
-                            ? `${clue.description}\n\n[Continuity: ${upd.notes}]`.trim()
-                            : clue.description;
-                    }
-                });
-                window.DumpPanel.renderClues();
-            }
+            if (window.DumpPanel) window.DumpPanel.applyClueUpdates(data.clue_updates);
 
             this.txtContOut.value = this._formatContinuityReport(data);
             this._show('phase-a-verdict');
@@ -275,18 +282,7 @@ window.LLMPanel = {
     },
 
     _formatContinuityReport(data) {
-        const verdict = data.verdict === 'approve' ? '✅ APPROVE' : '⚠️ REVISE';
-        let out = `VERDICT: ${verdict}\n\n${data.summary || ''}`;
-        if (data.issues?.length) {
-            out += `\n\nISSUES TO ADDRESS:\n${data.issues.map((i, n) => `${n + 1}. ${i}`).join('\n')}`;
-        }
-        if (data.clue_updates?.length) {
-            out += `\n\nCLUE STATUS UPDATES:`;
-            data.clue_updates.forEach(u => {
-                out += `\n• [${u.status.toUpperCase()}] ${u.id}: ${u.notes}`;
-            });
-        }
-        return out;
+        return window.formatContinuityReport(data);
     },
 
     approvePlanToPhaseB() {

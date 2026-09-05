@@ -2,7 +2,7 @@ import json
 import re
 from datetime import datetime
 
-from backend.models.schemas import BookProject, ContextElement, PlantedClue, VoiceProfile, VoiceStage
+from backend.models.schemas import BookProject, Chapter, ContextElement, PlantedClue, VoiceProfile, VoiceStage
 from backend.utils.snapshot import load_snapshot, save_snapshot, suggest_filename
 
 
@@ -86,6 +86,35 @@ def test_save_load_round_trip_preserves_phase_a_state(tmp_path):
     assert e2.compressed is True
     assert e2.content_full == "the long skeleton text"
     assert e2.source_ref == "chapter-1-id"
+
+
+def test_chapter_continuity_fields_round_trip(tmp_path):
+    p = make_project()
+    p.chapters = [Chapter(
+        id="c1", number=1, title="Arrival", intention="", scene_notes="", skeleton="", summary="",
+        full_text="prose", order=1, status="drafted",
+        story_state={"chapter": 1, "characters": {"Keel": {"location": "docks", "knows": ["the seal is forged"]}},
+                     "open_threads": ["who sent the letter?"]},
+        continuity_report='{"verdict": "approve", "issues": []}',
+        continuity_verdict="approve",
+        state_stale=True,
+        state_computed_at="2026-09-05T20:00:00",
+    )]
+    path = tmp_path / "c.json"
+    save_snapshot(p, str(path))
+    ch = load_snapshot(str(path)).chapters[0]
+    assert ch.story_state["characters"]["Keel"]["knows"] == ["the seal is forged"]
+    assert ch.continuity_verdict == "approve"
+    assert ch.state_stale is True
+    assert json.loads(ch.continuity_report)["verdict"] == "approve"
+
+
+def test_legacy_chapter_without_continuity_fields_loads():
+    ch = Chapter(id="c", number=1, title="t", intention="", scene_notes="", skeleton="", summary="",
+                 full_text="", order=1, status="empty")
+    assert ch.story_state == {}
+    assert ch.continuity_verdict == ""
+    assert ch.state_stale is False
 
 
 def test_save_stamps_updated_at_as_iso(tmp_path):

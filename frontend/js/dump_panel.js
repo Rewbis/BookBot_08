@@ -96,6 +96,22 @@ window.DumpPanel = {
         );
     },
 
+    // Apply {id, status, notes} updates from a continuity agent (plan-level or per-chapter).
+    // Status is only ever active|blocked; notes are appended to the description once.
+    applyClueUpdates(updates) {
+        if (!Array.isArray(updates) || updates.length === 0) return;
+        updates.forEach(upd => {
+            const clue = this.plantedClues.find(c => c.id === upd.id)
+                      || (upd.label ? this.plantedClues.find(c => c.label === upd.label) : null);
+            if (!clue) return;
+            if (upd.status === 'active' || upd.status === 'blocked') clue.status = upd.status;
+            if (upd.notes && !(clue.description || '').includes(upd.notes)) {
+                clue.description = `${clue.description || ''}\n\n[Continuity: ${upd.notes}]`.trim();
+            }
+        });
+        this.renderClues();
+    },
+
     removeClue(id) {
         this.plantedClues = this.plantedClues.filter(c => c.id !== id);
         this.renderClues();

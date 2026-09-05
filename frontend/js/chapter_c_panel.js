@@ -74,7 +74,107 @@ window.ChapterCPanel = {
         const clues_due = this.cluesDueFor(ch);
         // Full profile list; the backend selects the stage active for this chapter.
         const voice_profiles = (window.VoicesPanel && window.VoicesPanel.profiles) || [];
-        return { context_elements, prior_chapter_summaries, preceding_chapter_tail, clues_due, voice_profiles };
+        const prior_state = this.priorStateFor(ch);
+        return { context_elements, prior_chapter_summaries, preceding_chapter_tail, clues_due, voice_profiles, prior_state };
+    },
+
+    // ── Per-chapter continuity ────────────────────────────────────────────────
+
+    hasState(ch) {
+        return !!(ch && ch.story_state && Object.keys(ch.story_state).length);
+    },
+
+    // Canon for this chapter = the state at the end of the nearest earlier chapter that has one.
+    priorStateFor(ch) {
+        const earlier = window.ChapterPanel.chapters
+            .filter(c => c.number < ch.number && this.hasState(c))
+            .sort((a, b) => b.number - a.number);
+        return earlier.length ? earlier[0].story_state : {};
+    },
+
+    // After chapter N's state changes, every later chapter that was checked against the
+    // old state is stale. Flag only — the human decides what to re-run.
+    markDownstreamStale(ch) {
+        window.ChapterPanel.chapters.forEach(c => {
+            if (c.number > ch.number && (this.hasState(c) || c.continuity_verdict)) c.state_stale = true;
+        });
+    },
+
+    async runContinuity(chapterId, { fromPipeline = false } = {}) {
+        const ch = window.ChapterPanel.chapters.find(c => c.id === chapterId);
+        if (!ch) return;
+        if (!fromPipeline && this.isGenerating) return;
+        const text = ch.full_text || ch.polish_draft || ch.enrich_draft || ch.draft_text || '';
+        if (!text.trim()) return;
+
+        const { context_elements, clues_due, prior_state } = this.buildSharedContext(ch);
+        const wasGenerating = this.isGenerating;
+        this.isGenerating = true;
+        document.body.style.cursor = 'wait';
+        this.updateStatus(`Continuity check: chapter ${ch.number}…`);
+        if (!fromPipeline) this.renderAllChapters();
+
+        try {
+            const res = await fetch('/api/llm/chapter-continuity', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    context_elements,
+                    chapter_number: ch.number,
+                    chapter_title: ch.title,
+                    chapter_text: text,
+                    prior_state,
+                    planted_clues: (window.DumpPanel && window.DumpPanel.plantedClues) || [],
+                    clues_due,
+                    project_title: this.getProjectTitle(),
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'continuity failed');
+
+            ch.story_state = data.story_state || {};
+            ch.continuity_report = JSON.stringify(data);
+            ch.continuity_verdict = data.verdict || '';
+            ch.state_stale = false;
+            ch.state_computed_at = new Date().toISOString();
+            if (window.DumpPanel) window.DumpPanel.applyClueUpdates(data.clue_updates);
+            this.markDownstreamStale(ch);
+        } catch (e) {
+            console.error('Continuity error:', e);
+            ch.continuity_report = JSON.stringify({ verdict: '', summary: 'Error: ' + e.message, issues: [], clue_updates: [] });
+            ch.continuity_verdict = '';
+        } finally {
+            this.isGenerating = wasGenerating;
+            if (!wasGenerating) document.body.style.cursor = 'default';
+            this.updateStatus('');
+            this.renderAllChapters();
+            this.notifyUsageUpdate();
+        }
+    },
+
+    // Human edit of the state JSON in the card. Invalid JSON is rejected, not saved.
+    updateStoryState(chapterId, textarea) {
+        const ch = window.ChapterPanel.chapters.find(c => c.id === chapterId);
+        if (!ch) return;
+        const msg = textarea.parentElement.querySelector('.state-json-msg');
+        try {
+            const parsed = JSON.parse(textarea.value);
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('state must be a JSON object');
+            ch.story_state = parsed;
+            ch.state_computed_at = new Date().toISOString();
+            this.markDownstreamStale(ch);
+            if (msg) { msg.textContent = 'State saved — later chapters flagged stale.'; msg.classList.remove('err'); }
+        } catch (e) {
+            if (msg) { msg.textContent = 'Not saved — invalid JSON: ' + e.message; msg.classList.add('err'); }
+        }
+    },
+
+    _parseReport(str) {
+        if (!str) return null;
+        try { return JSON.parse(str); } catch (_) { return null; }
+    },
+
+    _esc(str) {
+        return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     },
 
     renderAllChapters() {
@@ -93,12 +193,13 @@ window.ChapterCPanel = {
     },
 
     getPassStatus(ch) {
-        const passes = ['draft', 'enrich', 'critic', 'polish'];
+        const passes = ['draft', 'enrich', 'critic', 'polish', 'continuity'];
         const draftMap = {
             draft: ch.draft_text,
             enrich: ch.enrich_draft,
             critic: ch.critic_output,
-            polish: ch.polish_draft
+            polish: ch.polish_draft,
+            continuity: ch.continuity_verdict && !ch.state_stale
         };
         return passes.map(p => ({
             name: p,
@@ -136,6 +237,7 @@ window.ChapterCPanel = {
         topBar.innerHTML = `
             <span class="chapter-number-badge">Ch ${ch.number}</span>
             <span style="flex:1; font-weight: bold; color: #ccc;">${ch.title}</span>
+            ${ch.state_stale ? '<span class="cont-badge stale" title="Continuity state is stale">⏳</span>' : ''}
             <span style="font-size:1.1rem;">${statusIcon}</span>
             <div class="progress-pills">${pillsHtml}</div>
             <span class="word-count-badge">${wordCount} words</span>
@@ -198,6 +300,8 @@ window.ChapterCPanel = {
             draftArea.value = latestDraft;
             draftArea.addEventListener('change', (e) => {
                 ch.full_text = e.target.value;
+                // Hand edit: the state computed from the old text no longer reflects this chapter.
+                if (ch.continuity_verdict || this.hasState(ch)) ch.state_stale = true;
             });
             body.appendChild(draftArea);
 
@@ -224,6 +328,41 @@ window.ChapterCPanel = {
                 </div>
             `;
             body.appendChild(summaryDiv);
+
+            // Continuity subsection: verdict, stale flag, report, editable story state
+            const contDiv = document.createElement('div');
+            contDiv.className = 'continuity-subsection';
+            const report = this._parseReport(ch.continuity_report);
+            const verdictBadge =
+                ch.continuity_verdict === 'approve' ? '<span class="cont-badge ok">✅ consistent</span>' :
+                ch.continuity_verdict === 'revise'  ? '<span class="cont-badge warn">⚠️ revise</span>' :
+                                                      '<span class="cont-badge none">not checked</span>';
+            const staleBadge = ch.state_stale
+                ? '<span class="cont-badge stale" title="This chapter\'s text or an earlier chapter changed since continuity last ran">⏳ stale — re-run</span>'
+                : '';
+            const stateJson = this.hasState(ch) ? JSON.stringify(ch.story_state, null, 2) : '';
+            contDiv.innerHTML = `
+                <div class="button-row" style="align-items:center; gap:8px; flex-wrap:wrap;">
+                    <label style="color:#ccc; font-size:0.9rem;">Continuity</label>
+                    ${verdictBadge}${staleBadge}
+                    <button class="btn-secondary btn-sm"
+                        onclick="ChapterCPanel.runContinuity('${ch.id}')"
+                        ${(!hasDraft || this.isGenerating) ? 'disabled' : ''}>
+                        ${ch.continuity_verdict ? 'Re-run Continuity' : 'Run Continuity'}
+                    </button>
+                </div>
+                <textarea rows="4" class="streaming-output" readonly
+                    placeholder="Continuity report appears here after the chapter is generated or checked…">${this._esc(report ? window.formatContinuityReport(report) : '')}</textarea>
+                <details class="state-details" style="${stateJson ? '' : 'display:none;'}">
+                    <summary>Story state after this chapter
+                        <span class="section-hint">— canon for the next chapter; edit if the agent got something wrong</span>
+                    </summary>
+                    <textarea rows="14" class="state-json" spellcheck="false"
+                        onchange="ChapterCPanel.updateStoryState('${ch.id}', this)">${this._esc(stateJson)}</textarea>
+                    <div class="section-hint state-json-msg"></div>
+                </details>
+            `;
+            body.appendChild(contDiv);
 
             div.appendChild(body);
         }
@@ -255,7 +394,7 @@ window.ChapterCPanel = {
         ch.phase_c_status = 'actions';
         this.renderAllChapters();
 
-        const { context_elements, prior_chapter_summaries, preceding_chapter_tail, clues_due, voice_profiles } =
+        const { context_elements, prior_chapter_summaries, preceding_chapter_tail, clues_due, voice_profiles, prior_state } =
             this.buildSharedContext(ch);
 
         const basePayload = {
@@ -264,6 +403,7 @@ window.ChapterCPanel = {
             preceding_chapter_tail,
             clues_due,
             voice_profiles,
+            prior_state,
             chapter_number: ch.number,
             chapter_title: ch.title,
             chapter_skeleton: ch.skeleton || '',
@@ -354,8 +494,9 @@ window.ChapterCPanel = {
             ch.full_text = currentDraft;
             ch.phase_c_status = 'polish';
 
-            // Auto-generate summary
+            // Auto-generate summary, then continuity (emits this chapter's story state)
             await this.generateSummary(chapterId);
+            await this.runContinuity(chapterId, { fromPipeline: true });
 
             // Auto-scroll to next chapter
             const nextCh = window.ChapterPanel.chapters.find(c => c.number === ch.number + 1);
@@ -387,7 +528,7 @@ window.ChapterCPanel = {
         this.isGenerating = true;
         document.body.style.cursor = 'wait';
 
-        const { context_elements, prior_chapter_summaries, preceding_chapter_tail, clues_due, voice_profiles } =
+        const { context_elements, prior_chapter_summaries, preceding_chapter_tail, clues_due, voice_profiles, prior_state } =
             this.buildSharedContext(ch);
 
         // full_text is the human-edited text once it exists — it must win over the
@@ -400,6 +541,7 @@ window.ChapterCPanel = {
             preceding_chapter_tail,
             clues_due,
             voice_profiles,
+            prior_state,
             chapter_number: ch.number,
             chapter_title: ch.title,
             chapter_skeleton: ch.skeleton || '',
@@ -428,6 +570,9 @@ window.ChapterCPanel = {
             data = await res.json();
             ch.polish_draft = data.content;
             ch.full_text = ch.polish_draft;
+
+            // Text changed: recompute this chapter's state (flags later chapters stale)
+            await this.runContinuity(chapterId, { fromPipeline: true });
 
         } catch (e) {
             console.error('Re-run critic error:', e);

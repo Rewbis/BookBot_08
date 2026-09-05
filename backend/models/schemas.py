@@ -43,6 +43,16 @@ class Chapter(BaseModel):
     has_explicit_content: bool = False
     polish_draft: str = ""
     phase_c_status: str = "not_started"
+    # Per-chapter continuity. story_state = the world as it stands at the END of this
+    # chapter (characters' location/knowledge/wants/condition/possessions/relationships,
+    # open threads, clue lifecycle, world facts). Chapter N's drafter and critic read
+    # chapter N-1's state as canon. Rewriting chapter N regenerates only state N and
+    # flags every later chapter stale; the human decides what to re-run.
+    story_state: Dict[str, Any] = {}
+    continuity_report: str = ""      # JSON string of the last /chapter-continuity response
+    continuity_verdict: str = ""     # approve | revise | ""
+    state_stale: bool = False
+    state_computed_at: str = ""
 
     model_config = ConfigDict(populate_by_name=True)
 
