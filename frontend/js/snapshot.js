@@ -88,7 +88,16 @@ window.Snapshot = {
                     saves.forEach(f => {
                         const btn = document.createElement('button');
                         btn.className = 'load-save-btn';
-                        btn.innerText = new Date(f.modified_date).toLocaleString();
+                        btn.title = f.filename;
+                        // Date is the primary label; filename shown muted so two saves
+                        // with identical timestamps (e.g. a renamed file) stay distinguishable.
+                        const dateSpan = document.createElement('span');
+                        dateSpan.textContent = new Date(f.modified_date).toLocaleString();
+                        const fileSpan = document.createElement('span');
+                        fileSpan.className = 'load-save-filename';
+                        fileSpan.textContent = f.filename;
+                        btn.appendChild(dateSpan);
+                        btn.appendChild(fileSpan);
                         btn.onclick = () => this.loadSpecificProject(f.filename);
                         body.appendChild(btn);
                     });

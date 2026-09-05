@@ -7,6 +7,7 @@ from typing import List, Optional
 
 from backend.services.ollama_service import OllamaService
 from backend.services.claude_service import ClaudeService
+from backend.utils.llm_json import parse_json_response
 
 router = APIRouter(prefix="/api/llm", tags=["llm"])
 ollama_service = OllamaService()
@@ -70,6 +71,8 @@ class ChapterWriteRequest(BaseModel):
     current_draft: str
     critic_feedback: str
     target_words_per_chapter: int = 1500
+    # Planted clues scheduled for this chapter: [{label, description, role: "plant"|"payoff"}]
+    clues_due: List[dict] = []
     project_title: str = "unknown"
 
 class ParseDumpRequest(BaseModel):
@@ -99,6 +102,21 @@ def build_user_message(context_elements: List[ContextElementBase]) -> str:
     for el in context_elements:
         parts.append(f"## {el.label}\n{el.content}\n")
     return "\n".join(parts)
+
+def build_clues_due_block(clues_due: List[dict]) -> str:
+    """Render the clues scheduled for this chapter, split into plants and payoffs."""
+    if not clues_due:
+        return ""
+    plants  = [c for c in clues_due if c.get("role") == "plant"]
+    payoffs = [c for c in clues_due if c.get("role") == "payoff"]
+    out = "## Clues Due In This Chapter\n"
+    if plants:
+        out += "Plant (introduce subtly, do not signpost as a clue):\n"
+        out += "".join(f"- {c.get('label')}: {c.get('description')}\n" for c in plants)
+    if payoffs:
+        out += "Pay off (resolve or reveal what was set up earlier):\n"
+        out += "".join(f"- {c.get('label')}: {c.get('description')}\n" for c in payoffs)
+    return out + "\n"
 
 @router.post("/plotter")
 async def run_plotter(req: PlotterRequest):
@@ -223,13 +241,7 @@ async def run_chapter_plan(req: ChapterPlanRequest):
     ]
 
     raw = await claude_service.generate(messages, stream=False, project_title=req.project_title)
-    try:
-        plan = json.loads(raw)
-    except json.JSONDecodeError:
-        # strip markdown fences if model added them
-        cleaned = re.sub(r"^```[a-z]*\n?|\n?```$", "", raw.strip())
-        plan = json.loads(cleaned)
-    return plan
+    return parse_json_response(raw)
 
 DE_AI_RULES = """
 ANTI-AI WRITING RULES — avoid all of the following:
@@ -253,6 +265,8 @@ async def run_chapter_draft(req: ChapterWriteRequest):
         "2. Write all key actions and events — what physically happens, decisions made, consequences.\n"
         "3. Where dialogue would naturally occur, write a placeholder: [DIALOGUE: {character} says something to the effect of {brief intent}]\n"
         "Keep character voices, motivations, and emotional states consistent with their profiles.\n"
+        "If a 'Clues Due In This Chapter' section is present, every item in it must appear in the prose — "
+        "plants woven in naturally, payoffs resolved on the page.\n"
         f"Target length: approximately {req.target_words_per_chapter} words.\n"
         "Return ONLY the chapter prose. No commentary, no headers."
     )
@@ -261,6 +275,7 @@ async def run_chapter_draft(req: ChapterWriteRequest):
         user_msg += f"## Chapter {summary.get('number')} Summary: {summary.get('title')}\n{summary.get('summary')}\n\n"
     if req.preceding_chapter_tail:
         user_msg += f"## End of Previous Chapter\n{req.preceding_chapter_tail}\n\n"
+    user_msg += build_clues_due_block(req.clues_due)
     user_msg += f"## Chapter to Write\nChapter {req.chapter_number}: {req.chapter_title}\n\nSkeleton:\n{req.chapter_skeleton}\n"
 
     messages = [
@@ -303,12 +318,15 @@ async def run_chapter_critic(req: ChapterWriteRequest):
         "missing emotional beats, or prose quality issues. "
         "Be specific — quote the problematic passage and explain the issue. "
         "Be constructive — suggest what should change and why. "
+        "If a 'Clues Due In This Chapter' section is present, check each item: state whether it "
+        "was planted or paid off in the draft, and flag any that are missing or too heavy-handed. "
         "List your critiques clearly and concisely."
     )
     user_msg = build_user_message(req.context_elements)
     for summary in req.prior_chapter_summaries:
         user_msg += f"## Chapter {summary.get('number')} Summary: {summary.get('title')}\n{summary.get('summary')}\n\n"
-    
+
+    user_msg += build_clues_due_block(req.clues_due)
     user_msg += f"## Chapter Draft\n{req.current_draft}\n"
     
     if req.critic_feedback:
@@ -348,11 +366,13 @@ async def run_chapter_polish(req: ChapterWriteRequest):
 @router.post("/chapter-summary")
 async def run_chapter_summary(req: ChapterWriteRequest):
     sys_prompt = (
-        "You are a precise summariser. Given a completed chapter, write a concise "
-        "summary of 100-150 words covering: the key events that occurred, how each "
-        "main character's situation changed, and the emotional state at the chapter's "
-        "end. This summary will be used as context for writing subsequent chapters — "
-        "be specific about facts, not vague about themes."
+        "You are a precise summariser. Given a completed chapter, write a factual "
+        "summary of 200-300 words covering: the key events in order; what each main "
+        "character now knows, wants, and where they are; any change in relationships, "
+        "injuries, possessions, or status; any clue, motif, or promise planted or paid off; "
+        "and the emotional state at the chapter's end. This summary is the memory of this "
+        "chapter for every later chapter — be specific about facts, names, and places, "
+        "not vague about themes."
     )
     user_msg = f"## Chapter {req.chapter_number}: {req.chapter_title}\n{req.current_draft}\n"
     
@@ -404,9 +424,7 @@ async def run_continuity(req: ContinuityRequest):
         {"role": "user", "content": user_msg},
     ]
     result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
-    result = re.sub(r'^```(?:json)?\s*', '', result.strip())
-    result = re.sub(r'\s*```$', '', result.strip())
-    return json.loads(result)
+    return parse_json_response(result)
 
 
 @router.post("/summarise-premise")
@@ -477,9 +495,7 @@ async def run_parse_dump(req: ParseDumpRequest):
     ]
     result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
     # Strip markdown code fences if the model adds them
-    result = re.sub(r'^```(?:json)?\s*', '', result.strip())
-    result = re.sub(r'\s*```$', '', result.strip())
-    return json.loads(result)
+    return parse_json_response(result)
 
 
 @router.get("/health")

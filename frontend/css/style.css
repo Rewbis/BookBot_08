@@ -307,6 +307,8 @@ hr { border: 0; border-top: 1px solid var(--border-color); margin: 20px 0; }
     border-radius: 4px; color: var(--text-color); cursor: pointer; font-size: 0.9rem;
 }
 .load-save-btn:hover { background: var(--btn-primary); border-color: var(--accent-color); }
+.load-save-btn { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.load-save-filename { font-size: 0.72rem; color: #888; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Phase B */
 .context-item[data-phase="B"] { background-color: #1a2a3a; border-color: #3a6a9a; }

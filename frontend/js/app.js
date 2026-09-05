@@ -1,6 +1,24 @@
 // Defined at top level so mobile inline handlers can always reach it
+const MOBILE_BREAKPOINT = 1024;
+window._isMobile = () => window.innerWidth <= MOBILE_BREAKPOINT;
+
+// Apply the correct layout mode. Mobile = all sections visible as one long page;
+// desktop = one active tab. Called on load and whenever the viewport crosses the breakpoint.
+window._applyLayoutMode = function() {
+    const sections = document.querySelectorAll('.tab-content');
+    if (window._isMobile()) {
+        sections.forEach(el => el.style.removeProperty('display'));
+        if (window.ChapterCPanel) window.ChapterCPanel.renderAllChapters();
+        if (window.ArchitecturePanel) window.ArchitecturePanel.init();
+    } else {
+        const active = document.querySelector('.tab-btn.active');
+        const activeId = active ? active.dataset.tab : 'tab-a';
+        sections.forEach(el => { el.style.display = el.id === activeId ? 'block' : 'none'; });
+    }
+};
+
 window._gotoTab = function(tabId) {
-    if (window.innerWidth <= 1024) {
+    if (window._isMobile()) {
         // Mobile: all sections visible, just scroll to the right one
         const el = document.getElementById(tabId);
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -26,20 +44,17 @@ window._switchTab = function(t) {
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Initialize modules
-    const safeInit = (name, fn) => { try { fn(); } catch(e) { console.error(`${name} init failed:`, e); } };
-    safeInit('ContextPanel', () => window.ContextPanel.init());
-    safeInit('DumpPanel',    () => window.DumpPanel.init());
-    safeInit('LLMPanel',     () => window.LLMPanel.init());
-    safeInit('ChapterPanel', () => window.ChapterPanel.init());
-    safeInit('ChapterCPanel',() => window.ChapterCPanel.init());
-    safeInit('ResearchPanel',() => window.ResearchPanel.init());
+    // 1. Initialize modules — fail loud: a broken init should stop here, not surface
+    //    later as an unrelated TypeError.
+    window.ContextPanel.init();
+    window.DumpPanel.init();
+    window.LLMPanel.init();
+    window.ChapterPanel.init();
+    window.ChapterCPanel.init();
+    window.ResearchPanel.init();
 
     // 2. Bind top-level buttons
-    document.getElementById('btn-new-project').addEventListener('click', () => window.Snapshot.newProject());
-    document.getElementById('btn-save-project').addEventListener('click', () => window.Snapshot.saveProject());
-    document.getElementById('btn-load-project').addEventListener('click', () => window.Snapshot.loadProject());
-    
+    // New/Load/Save use inline onclick in index.html (required for mobile) — do not also bind here.
     document.getElementById('btn-cancel-load').addEventListener('click', () => {
         document.getElementById('load-modal').style.display = 'none';
     });
@@ -184,13 +199,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error("Failed to init project", e);
     }
 
-    // 7. On mobile: show all sections as one long page
-    const isMobile = window.innerWidth <= 1024;
-    if (isMobile) {
-        document.querySelectorAll('.tab-content').forEach(el => {
-            el.style.removeProperty('display');
-        });
-        if (window.ChapterCPanel) window.ChapterCPanel.renderAllChapters();
-        if (window.ArchitecturePanel) window.ArchitecturePanel.init();
-    }
+    // 7. Apply layout mode now, and re-apply if the viewport crosses the breakpoint
+    //    (rotation, window resize) so sections don't end up hidden or double-stacked.
+    window._applyLayoutMode();
+    let wasMobile = window._isMobile();
+    window.addEventListener('resize', () => {
+        const nowMobile = window._isMobile();
+        if (nowMobile !== wasMobile) {
+            wasMobile = nowMobile;
+            window._applyLayoutMode();
+        }
+    });
 });

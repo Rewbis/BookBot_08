@@ -32,6 +32,30 @@ window.ChapterCPanel = {
         return Math.round(words / chapters);
     },
 
+    // Does a clue's free-text "planted_in" / "pays_off_in" refer to this chapter?
+    // Matches a bare number, "Ch 3", "Chapter 3", "ch.3", or the chapter title.
+    clueRefersToChapter(ref, ch) {
+        if (!ref) return false;
+        const text = String(ref).toLowerCase();
+        const nums = [...text.matchAll(/\b(?:ch(?:apter)?\.?\s*)?(\d+)\b/g)].map(m => parseInt(m[1], 10));
+        if (nums.includes(ch.number)) return true;
+        const title = (ch.title || '').toLowerCase().trim();
+        return title.length > 3 && title !== `chapter ${ch.number}` && text.includes(title);
+    },
+
+    // Planted clues scheduled for this chapter, tagged plant / payoff.
+    cluesDueFor(ch) {
+        const clues = (window.DumpPanel && window.DumpPanel.plantedClues) || [];
+        const due = [];
+        clues.filter(c => c.status !== 'blocked').forEach(c => {
+            if (this.clueRefersToChapter(c.planted_in, ch))
+                due.push({ label: c.label, description: c.description, role: 'plant' });
+            if (this.clueRefersToChapter(c.pays_off_in, ch))
+                due.push({ label: c.label, description: c.description, role: 'payoff' });
+        });
+        return due;
+    },
+
     buildSharedContext(ch) {
         const chapters = window.ChapterPanel.chapters;
         const context_elements = window.ContextPanel.exportElementsForLLM();
@@ -47,7 +71,8 @@ window.ChapterCPanel = {
             preceding_chapter_tail = words.slice(-500).join(' ');
         }
 
-        return { context_elements, prior_chapter_summaries, preceding_chapter_tail };
+        const clues_due = this.cluesDueFor(ch);
+        return { context_elements, prior_chapter_summaries, preceding_chapter_tail, clues_due };
     },
 
     renderAllChapters() {
@@ -228,19 +253,19 @@ window.ChapterCPanel = {
         ch.phase_c_status = 'actions';
         this.renderAllChapters();
 
-        const { context_elements, prior_chapter_summaries, preceding_chapter_tail } =
+        const { context_elements, prior_chapter_summaries, preceding_chapter_tail, clues_due } =
             this.buildSharedContext(ch);
 
         const basePayload = {
             context_elements,
             prior_chapter_summaries,
             preceding_chapter_tail,
+            clues_due,
             chapter_number: ch.number,
             chapter_title: ch.title,
             chapter_skeleton: ch.skeleton || '',
             current_draft: '',
             critic_feedback: '',
-            antagonist_rounds: 1,
             target_words_per_chapter: this.getTargetWordsPerChapter(),
             project_title: this.getProjectTitle()
         };
@@ -359,21 +384,23 @@ window.ChapterCPanel = {
         this.isGenerating = true;
         document.body.style.cursor = 'wait';
 
-        const { context_elements, prior_chapter_summaries, preceding_chapter_tail } =
+        const { context_elements, prior_chapter_summaries, preceding_chapter_tail, clues_due } =
             this.buildSharedContext(ch);
 
-        const currentDraft = ch.polish_draft || ch.enrich_draft || ch.full_text || '';
+        // full_text is the human-edited text once it exists — it must win over the
+        // agents' own drafts, otherwise the editor pass silently discards hand edits.
+        const currentDraft = ch.full_text || ch.polish_draft || ch.enrich_draft || '';
 
         const basePayload = {
             context_elements,
             prior_chapter_summaries,
             preceding_chapter_tail,
+            clues_due,
             chapter_number: ch.number,
             chapter_title: ch.title,
             chapter_skeleton: ch.skeleton || '',
             current_draft: currentDraft,
             critic_feedback: ch.critic_output || '',
-            antagonist_rounds: 1,
             target_words_per_chapter: this.getTargetWordsPerChapter(),
             project_title: this.getProjectTitle()
         };
