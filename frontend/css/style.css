@@ -87,6 +87,31 @@ aside.context-panel {
 
 .token-tracker { margin-bottom: 15px; }
 .token-text { font-size: 0.8rem; color: #bbb; margin-bottom: 4px; }
+.token-cost { color: #888; margin-left: 6px; font-size: 0.75rem; }
+
+/* Context budget panel — appears at 80% of the warn threshold */
+.context-budget {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--accent-color);
+    border-radius: 5px;
+    background: rgba(240, 165, 0, 0.06);
+    font-size: 0.8rem;
+}
+.context-budget.over { border-color: var(--btn-danger); background: rgba(230, 57, 70, 0.07); }
+.budget-title { font-weight: 600; color: var(--accent-color); margin-bottom: 3px; }
+.context-budget.over .budget-title { color: var(--btn-danger); }
+.budget-hint, .budget-empty { color: #aaa; font-size: 0.75rem; line-height: 1.4; margin-bottom: 6px; }
+.budget-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 3px 0; cursor: pointer;
+}
+.budget-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.budget-effect { font-family: monospace; font-size: 0.75rem; color: var(--btn-success); }
+.compressed-badge {
+    font-size: 0.65rem; padding: 1px 5px; border-radius: 10px; margin-left: 5px;
+    background: var(--btn-primary); color: #cde; vertical-align: middle;
+}
 .token-bar-container {
     width: 100%;
     height: 6px;

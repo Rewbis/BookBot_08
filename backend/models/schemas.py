@@ -13,6 +13,13 @@ class ContextElement(BaseModel):
     source: str
     created_at: str
     updated_at: str
+    # Context budget: an element can be swapped for a compressed alternative
+    # (e.g. chapter skeleton -> chapter summary). content_full keeps the original
+    # so the swap is lossless; source_ref links back to the originating record
+    # (e.g. a chapter id) so the alternative can be looked up.
+    compressed: bool = False
+    content_full: str = ""
+    source_ref: str = ""
 
     model_config = ConfigDict(populate_by_name=True)
 

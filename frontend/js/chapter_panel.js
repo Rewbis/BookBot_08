@@ -292,7 +292,8 @@ window.ChapterPanel = {
             ch.skeleton,
             "llm",
             "chapter_skeleton",
-            "B"
+            "B",
+            ch.id   // source_ref: lets the context budget swap this for the chapter summary later
         );
         
         this.renderAllChapters();

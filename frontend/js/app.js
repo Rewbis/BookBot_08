@@ -182,11 +182,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     await checkOllama();
     setInterval(checkOllama, 30000);
 
-    // 5. Fetch LLM Config
+    // 5. Fetch LLM Config (generation model + context budget settings)
     try {
         const configRes = await fetch('/api/llm/config');
         const config = await configRes.json();
         window.currentModelName = config.model_name;
+        window.ContextPanel.setBudget(config);
     } catch (e) {
         console.error("Failed to fetch LLM config", e);
     }

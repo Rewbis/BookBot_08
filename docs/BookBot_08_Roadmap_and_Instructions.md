@@ -35,6 +35,7 @@ BookBot_08/
 │   │   └── token_service.py     # tiktoken cl100k approximation
 │   └── utils/
 │       ├── llm_json.py          # parse_json_response(): strips ```json fences, json.loads
+│       ├── model_config.py      # GET /api/llm/config payload: model, context window, warn threshold, $/MTok
 │       ├── logger.py            # per-call JSON logs to /logs/
 │       ├── snapshot.py          # save/load/suggest_filename
 │       └── usage_tracker.py     # session token + USD accumulator (Claude vs local)
@@ -183,6 +184,8 @@ All Phase C endpoints share `ChapterWriteRequest`: `context_elements`, `prior_ch
 - `plotter_output`, `antagonist_output`, `plotter_revision_output`, `continuity_output` (JSON string) — persisted so a snapshot survives reload mid-loop
 - `genre`, `tone`, `audience` — legacy, kept so old snapshots load
 
+**`ContextElement`** — `id`, `label`, `content`, `element_type`, `phase`, `order`, `enabled`, `token_count`, `source`; budget fields `compressed`, `content_full`, `source_ref` (see Context budget)
+
 **`PlantedClue`** — `id`, `label`, `description`, `planted_in`, `pays_off_in`, `status` (`active | blocked`, default `active`)
 
 **`Chapter`**
@@ -208,6 +211,7 @@ The matrix includes a `local_explicit` column and `has_explicit_content` / `expl
 - **Header buttons use inline `onclick`** (`New`, `Load`, `Save`, mobile tab `<select>`). `addEventListener` bindings made inside `DOMContentLoaded` did not fire on Android; inline handlers did. Do not also bind them in `app.js` — that double-fires on desktop.
 - **Layout modes** (`app.js` → `_applyLayoutMode`): ≤1024px shows every phase stacked as one long page and the header dropdown scrolls to a section; wider shows tabs. Re-applied on `resize` when the viewport crosses the breakpoint.
 - **Mobile touch:** `touch-action: manipulation` on buttons; inputs are `font-size: 16px` on mobile to stop Android's focus-zoom.
+- **Context budget** (`context_panel.js`): the token bar is scaled to `context_warn_tokens` from `GET /api/llm/config` (default 120,000, env `CONTEXT_WARN_TOKENS`; window default 1,000,000, env `CLAUDE_CONTEXT_WINDOW`) and shows an estimated input $/call. At 80% of the threshold a *Context budget* panel lists compressible elements with the tokens each would save; ticking one swaps the element's `content` for its compressed alternative and keeps the original in `content_full` (`compressed: true`, lossless). Alternatives: `chapter_skeleton` → that chapter's `summary`/`enrich_draft_summary` (found via `source_ref` = chapter id, or the `Ch N Skeleton` label for older snapshots); `premise` → `premise_summary`. The threshold is an absolute count on purpose — long-context studies show quality falls gradually from the first tokens with no cliff at the limit, and stale/duplicate material degrades output more than length does.
 - **Textareas:** `.streaming-output` auto-grows to content (`autoResize`), is `resize: vertical`, and re-sizes after `llm:complete` and after snapshot load.
 - **Tooltips** are `position: fixed`, positioned in JS from `getBoundingClientRect()`, so they escape the context panel's `overflow-y: auto`.
 
@@ -219,7 +223,8 @@ The matrix includes a `local_explicit` column and `has_explicit_content` / `expl
 cd E:\Coding\BookBot_08 && .venv\Scripts\python.exe -m pytest -q
 ```
 
-24 tests (as of 2026-09-05), no network, no API keys:
+27 tests (as of 2026-09-05), no network, no API keys:
+- `test_model_config.py` — `/api/llm/config` defaults and env overrides
 - `test_snapshot.py` — filename sanitising, save/load round-trip of all Phase A fields, legacy snapshots without new fields
 - `test_project_api.py` — `/api/project` new/save/list/load/suggest-filename via `TestClient` with `PROJECTS_DIR` pointed at a temp dir
 - `test_llm_json.py` — fence-tolerant JSON parsing used by continuity, parse-dump, chapter-plan

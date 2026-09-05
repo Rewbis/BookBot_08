@@ -50,7 +50,12 @@ def test_save_load_round_trip_preserves_phase_a_state(tmp_path):
         ContextElement(
             id="e1", label="Premise", content="Once upon a time", element_type="premise",
             phase="A", order=0, source="human", created_at=p.created_at, updated_at=p.updated_at,
-        )
+        ),
+        ContextElement(
+            id="e2", label="Ch 1 Skeleton: Arrival", content="short summary", element_type="chapter_skeleton",
+            phase="B", order=1, source="llm", created_at=p.created_at, updated_at=p.updated_at,
+            compressed=True, content_full="the long skeleton text", source_ref="chapter-1-id",
+        ),
     ]
 
     path = tmp_path / "snap.json"
@@ -68,6 +73,12 @@ def test_save_load_round_trip_preserves_phase_a_state(tmp_path):
     assert loaded.style_sample == "The rain came sideways."
     assert loaded.style_guide == "Short sentences. Weather as mood."
     assert loaded.context_elements[0].label == "Premise"
+    assert loaded.context_elements[0].compressed is False
+    assert loaded.context_elements[0].content_full == ""
+    e2 = loaded.context_elements[1]
+    assert e2.compressed is True
+    assert e2.content_full == "the long skeleton text"
+    assert e2.source_ref == "chapter-1-id"
 
 
 def test_save_stamps_updated_at_as_iso(tmp_path):

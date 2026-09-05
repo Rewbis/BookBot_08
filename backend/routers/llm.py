@@ -8,6 +8,7 @@ from typing import List, Optional
 from backend.services.ollama_service import OllamaService
 from backend.services.claude_service import ClaudeService
 from backend.utils.llm_json import parse_json_response
+from backend.utils.model_config import get_model_config
 
 router = APIRouter(prefix="/api/llm", tags=["llm"])
 ollama_service = OllamaService()
@@ -546,4 +547,5 @@ async def health_check():
 
 @router.get("/config")
 async def get_config():
-    return {"model_name": os.getenv("OLLAMA_MODEL", "")}
+    # Generation model + context budget settings the frontend uses for the token bar.
+    return get_model_config()
