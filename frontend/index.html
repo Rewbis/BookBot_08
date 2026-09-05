@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BookBot 08</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=4">
+    <link rel="stylesheet" href="/static/css/style.css?v=5">
 </head>
 
 <body>
@@ -217,6 +217,37 @@
 
                 <hr>
 
+                <!-- Writing Style -->
+                <div class="dump-section" id="style-section">
+                    <div class="dump-header">
+                        <div>
+                            <h3>Writing Style</h3>
+                            <p class="section-hint">Load or paste a few thousand words of your own prose. Derive a compact style guide from it, approve the guide (always sent), and optionally approve the raw sample as a toggleable context element so Enrich and Polish imitate you, not the model. Put both near the bottom of the context panel — lower items carry more weight.</p>
+                        </div>
+                        <div class="button-row" style="gap:0.5rem; flex-wrap:wrap; align-items:center;">
+                            <label class="file-btn" for="style-file-input">Load .txt</label>
+                            <input type="file" id="style-file-input" accept=".txt,.md" style="display:none;">
+                            <button id="btn-derive-style" class="btn-primary btn-sm" disabled>Derive Style Guide</button>
+                            <span id="style-status" class="status-text"></span>
+                        </div>
+                    </div>
+                    <textarea id="style-sample-text" class="streaming-output" rows="6"
+                        placeholder="Paste a sample of your writing here, or load a .txt file…"></textarea>
+                    <div class="button-row mt-1" style="align-items:center; gap:0.75rem;">
+                        <button id="btn-approve-style-sample" class="btn-success btn-sm" disabled>Approve Sample → Context</button>
+                        <span id="style-sample-tokens" class="section-hint"></span>
+                    </div>
+                    <div id="style-guide-row" style="display:none; margin-top:0.75rem;">
+                        <p class="section-hint">Derived style guide — edit freely before approving:</p>
+                        <textarea id="style-guide-text" class="streaming-output" rows="8"></textarea>
+                        <div class="button-row mt-1">
+                            <button id="btn-approve-style-guide" class="btn-success btn-sm">Approve Guide → Context</button>
+                        </div>
+                    </div>
+                </div>
+
+                <hr>
+
                 <!-- Plot Generation (plotter/antagonist loop) -->
                 <div class="generation-controls">
                     <h3>Plot Generation</h3>
@@ -324,15 +355,16 @@
     </div>
 
     <!-- Scripts -->
-    <script src="/static/js/context_panel.js?v=4"></script>
-    <script src="/static/js/dump_panel.js?v=4"></script>
-    <script src="/static/js/llm_panel.js?v=4"></script>
-    <script src="/static/js/chapter_panel.js?v=4"></script>
-    <script src="/static/js/snapshot.js?v=4"></script>
-    <script src="/static/js/chapter_c_panel.js?v=4"></script>
-    <script src="/static/js/architecture_panel.js?v=4"></script>
-    <script src="/static/js/research_panel.js?v=4"></script>
-    <script src="/static/js/app.js?v=4"></script>
+    <script src="/static/js/context_panel.js?v=5"></script>
+    <script src="/static/js/dump_panel.js?v=5"></script>
+    <script src="/static/js/llm_panel.js?v=5"></script>
+    <script src="/static/js/chapter_panel.js?v=5"></script>
+    <script src="/static/js/snapshot.js?v=5"></script>
+    <script src="/static/js/chapter_c_panel.js?v=5"></script>
+    <script src="/static/js/architecture_panel.js?v=5"></script>
+    <script src="/static/js/research_panel.js?v=5"></script>
+    <script src="/static/js/style_panel.js?v=5"></script>
+    <script src="/static/js/app.js?v=5"></script>
 </body>
 
 </html>

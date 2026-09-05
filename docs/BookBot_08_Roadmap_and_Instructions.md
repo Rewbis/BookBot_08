@@ -46,6 +46,7 @@ BookBot_08/
 │       ├── context_panel.js     # draggable/toggleable context elements + token bar
 │       ├── dump_panel.js        # creative dump → Parse & Structure → slot cards + planted clues
 │       ├── research_panel.js    # Tavily URL/search → raw + summary → Approve → Context; paste fallback
+│       ├── style_panel.js       # Writing Style: load/paste sample → derive style guide → Approve → Context
 │       ├── llm_panel.js         # Phase A loop: Plotter → Antagonist → Revision → Continuity → Summarise
 │       ├── chapter_panel.js     # Phase B: chapter cards, Chapter Plan, Skeleton, approve
 │       ├── chapter_c_panel.js   # Phase C: draft → enrich → critic → polish → summary; bulk generate
@@ -108,6 +109,7 @@ Creative Dump → Parse & Structure → [Human slot review → Approve → Conte
 | `/plotter-revision` | `context_elements`, `plotter_output`, `antagonist_critique` | `{content}` | On Pass Back, continuity issues are appended to `antagonist_critique` |
 | `/continuity` | `context_elements`, `plotter_revision_output`, `planted_clues[]`, `continuity_issues?` | `{verdict, summary, issues[], clue_updates[]}` | JSON; `verdict` is `approve` or `revise` |
 | `/summarise-premise` | `context_elements`, `premise` | `{content}` | 200–300 words. Shown with **Edit** + **Approve → Context**; not auto-added |
+| `/derive-style-guide` | `style_sample` | `{content}` | 250–350 word style fingerprint written as instructions to a writer |
 
 **Continuity response schema:**
 ```json
@@ -131,6 +133,12 @@ Creative Dump → Parse & Structure → [Human slot review → Approve → Conte
 | `/summarise` | `raw_content`, `source_label`, `context_elements` | `{content}` — 150–250 word story-relevant summary |
 
 Flow: Go → raw result shown → summarise runs automatically → both *Approve Raw* and *Approve Summary* offered. If Tavily returns an error (login-walled site etc.) an amber paste box appears; pasted text goes through the same summarise + approve path.
+
+### Writing Style (Phase A section)
+
+Load a `.txt`/`.md` (read client-side) or paste a sample of the author's prose. **Derive Style Guide** → editable 250–350 word guide → **Approve Guide → Context** (element type `style_guide`, source `llm`). **Approve Sample → Context** adds the raw text as a `style_sample` element — toggle it off in the context panel when saving tokens. Enrich and Polish prompts are told: follow a *Style Guide* exactly; imitate a *Writing Sample*'s rhythm and register directly. Both are matched by element label, so keep the labels. Place them near the bottom of the context list.
+
+Restored from Authorbot_04, which fed the raw sample to its De-AI editor as the target.
 
 ### Phase B — Chapter Outlines
 
@@ -170,6 +178,7 @@ All Phase C endpoints share `ChapterWriteRequest`: `context_elements`, `prior_ch
 
 **`BookProject`**
 - `creative_dump`, `role_constraints`, `premise`, `premise_summary`, `characters`, `world_notes`
+- `style_sample`, `style_guide` — see Writing Style
 - `planted_clues: List[PlantedClue]`
 - `plotter_output`, `antagonist_output`, `plotter_revision_output`, `continuity_output` (JSON string) — persisted so a snapshot survives reload mid-loop
 - `genre`, `tone`, `audience` — legacy, kept so old snapshots load

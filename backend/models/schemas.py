@@ -65,6 +65,9 @@ class BookProject(BaseModel):
     premise_summary: str = ""
     characters: str = ""
     world_notes: str = ""
+    # Writing style: raw author sample + derived guide (both optionally promoted to context)
+    style_sample: str = ""
+    style_guide: str = ""
     planted_clues: List[PlantedClue] = []
     # Phase A loop outputs — persisted so snapshots survive a reload mid-loop
     plotter_output: str = ""

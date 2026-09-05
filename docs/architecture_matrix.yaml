@@ -55,6 +55,11 @@ crud_matrix:
       model: claude-sonnet-5
       num_ctx: API
 
+    - id: style_derive
+      label: "Style Guide\n(derive)"
+      model: claude-sonnet-5
+      num_ctx: API
+
     - id: plotter
       label: Plotter
       model: claude-sonnet-5
@@ -205,6 +210,28 @@ crud_matrix:
             continuity:       "R"
             outliner:         "R"
             drafter:          "R"
+
+        - field: style_sample
+          desc: >
+            Raw sample of the author's own prose (loaded from .txt or pasted).
+            Optionally promoted to context as a toggleable 'Writing Sample' element;
+            Enrich and Polish imitate its rhythm and register directly.
+          cells:
+            human_slots:  "C,U"
+            style_derive: "R"
+            enricher:     "R"
+            polish:       "R"
+
+        - field: style_guide
+          desc: >
+            250-350 word style fingerprint derived from style_sample (POV, tense, rhythm,
+            register, dialogue habits, signature moves, things the author never does).
+            Human-edited, then promoted to context as 'Style Guide'.
+          cells:
+            style_derive: "C"
+            human_slots:  "U"
+            enricher:     "R"
+            polish:       "R"
 
         - field: "planted_clues[ ] — label / description"
           list_field: true
@@ -447,6 +474,14 @@ model_routing:
       phase_c3b: "—"
 
     - agent: "Research (Tavily + summarise)"
+      phase_a:   claude-sonnet-5
+      phase_b:   "—"
+      phase_c1:  "—"
+      phase_c2:  "—"
+      phase_c3a: "—"
+      phase_c3b: "—"
+
+    - agent: "Style Guide (derive)"
       phase_a:   claude-sonnet-5
       phase_b:   "—"
       phase_c1:  "—"

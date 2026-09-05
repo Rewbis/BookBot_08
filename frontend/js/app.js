@@ -52,6 +52,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.ChapterPanel.init();
     window.ChapterCPanel.init();
     window.ResearchPanel.init();
+    window.StylePanel.init();
 
     // 2. Bind top-level buttons
     // New/Load/Save use inline onclick in index.html (required for mobile) — do not also bind here.

@@ -537,6 +537,21 @@ hr { border: 0; border-top: 1px solid var(--border-color); margin: 20px 0; }
     white-space: nowrap;
 }
 
+/* <label> styled as a small button (wraps a hidden <input type=file>) */
+.file-btn {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 4px;
+    background: var(--btn-secondary);
+    color: #fff;
+    font-weight: bold;
+    font-size: 0.8rem;
+    cursor: pointer;
+    white-space: nowrap;
+    touch-action: manipulation;
+}
+.file-btn:hover { filter: brightness(1.1); }
+
 .empty-hint {
     color: #999;
     font-style: italic;

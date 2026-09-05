@@ -97,6 +97,10 @@ class SummariseEnrichRequest(BaseModel):
     enrich_draft: str
     project_title: str = "unknown"
 
+class DeriveStyleGuideRequest(BaseModel):
+    style_sample: str
+    project_title: str = "unknown"
+
 def build_user_message(context_elements: List[ContextElementBase]) -> str:
     parts = []
     for el in context_elements:
@@ -295,7 +299,10 @@ async def run_chapter_enrich(req: ChapterWriteRequest):
         "2. SENSORY: Layer in any missing sensory detail (sound, smell, texture, temperature) where it serves atmosphere. "
         "Do not duplicate detail already present.\n"
         "3. STYLE: Align vocabulary, sentence rhythm, and register with the stated genre, tone, and audience. "
-        "Fix awkward phrasing, repetition, and tonal inconsistency.\n"
+        "Fix awkward phrasing, repetition, and tonal inconsistency. "
+        "If the context contains a 'Style Guide', follow it exactly. If it contains a 'Writing Sample', "
+        "imitate that sample's sentence rhythm, dialogue habits, and register directly — the author's own "
+        "prose overrides generic genre style.\n"
         f"{DE_AI_RULES}\n"
         "Do not change plot events. Return the complete enriched chapter text. No commentary."
     )
@@ -348,7 +355,10 @@ async def run_chapter_polish(req: ChapterWriteRequest):
         "and improve the text accordingly. Do not mention the critique process in your "
         "output — simply return an improved version of the chapter. "
         "Preserve all plot events, character voices, and dialogue unless the critic "
-        "specifically flagged them as wrong.\n"
+        "specifically flagged them as wrong. "
+        "If the context contains a 'Style Guide', every sentence you touch must conform to it; "
+        "if it contains a 'Writing Sample', match that sample's rhythm and register rather than "
+        "a neutral literary default.\n"
         f"{DE_AI_RULES}"
     )
     user_msg = build_user_message(req.context_elements)
@@ -439,6 +449,34 @@ async def run_summarise_premise(req: SummarisePremiseRequest):
     user_msg = build_user_message(req.context_elements)
     user_msg += f"\n## Full Premise\n{req.premise}\n"
 
+    messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": user_msg},
+    ]
+    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    return {"content": result}
+
+
+@router.post("/derive-style-guide")
+async def run_derive_style_guide(req: DeriveStyleGuideRequest):
+    sys_prompt = (
+        "You are a prose style analyst. Given a sample of an author's own writing, produce a "
+        "Style Guide of 250-350 words that another writer could follow to imitate this author "
+        "convincingly. Cover, quoting short phrases from the sample where they make a point concrete:\n"
+        "- Narrative point of view and tense, and how strictly they are held\n"
+        "- Sentence length and rhythm: typical length, how it varies, use of fragments or run-ons\n"
+        "- Paragraph length and how scenes are broken up\n"
+        "- Vocabulary register, recurring word choices, level of formality\n"
+        "- Dialogue: tags used, action beats, dialect or idiom, how much is said versus implied\n"
+        "- Imagery and sensory tendencies: which senses, how much, how literal or figurative\n"
+        "- Tone and humour, and how they are delivered\n"
+        "- Pacing habits: where the author lingers, where they cut\n"
+        "- Signature moves that make the prose recognisably this author's\n"
+        "- Things this author does NOT do that a language model typically would\n"
+        "Write it as direct instructions to a writer ('Use…', 'Keep…', 'Avoid…'). "
+        "No preamble, no headings other than short labels, no commentary on quality."
+    )
+    user_msg = f"## Writing Sample\n\n{req.style_sample}\n"
     messages = [
         {"role": "system", "content": sys_prompt},
         {"role": "user", "content": user_msg},

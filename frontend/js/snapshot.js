@@ -16,7 +16,8 @@ window.Snapshot = {
         if (!finalName) return;
 
         const dumpData = window.DumpPanel ? window.DumpPanel.exportForSnapshot() : {};
-        const llmData  = window.LLMPanel  ? window.LLMPanel.exportForSnapshot()  : {};
+        const llmData   = window.LLMPanel   ? window.LLMPanel.exportForSnapshot()   : {};
+        const styleData = window.StylePanel ? window.StylePanel.exportForSnapshot() : {};
         const projectData = {
             id: window.currentProjectId || "",
             title: title,
@@ -29,7 +30,8 @@ window.Snapshot = {
             created_at: window.currentProjectCreatedAt || new Date().toISOString(),
             updated_at: new Date().toISOString(),
             ...dumpData,
-            ...llmData
+            ...llmData,
+            ...styleData
         };
 
         try {
@@ -153,7 +155,8 @@ window.Snapshot = {
         document.getElementById('setup-chapters').value = project.target_chapter_count || 20;
 
         if (window.DumpPanel) window.DumpPanel.loadFromSnapshot(project);
-        if (window.LLMPanel)  window.LLMPanel.loadFromSnapshot(project);
+        if (window.LLMPanel)   window.LLMPanel.loadFromSnapshot(project);
+        if (window.StylePanel) window.StylePanel.restoreFromSnapshot(project);
 
         window.ContextPanel.contextElements = project.context_elements || [];
         window.ContextPanel.renderContextPanel();

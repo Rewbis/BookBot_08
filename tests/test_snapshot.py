@@ -44,6 +44,8 @@ def test_save_load_round_trip_preserves_phase_a_state(tmp_path):
     p.plotter_revision_output = "revised"
     p.continuity_output = '{"verdict": "approve"}'
     p.premise_summary = "short"
+    p.style_sample = "The rain came sideways."
+    p.style_guide = "Short sentences. Weather as mood."
     p.context_elements = [
         ContextElement(
             id="e1", label="Premise", content="Once upon a time", element_type="premise",
@@ -63,6 +65,8 @@ def test_save_load_round_trip_preserves_phase_a_state(tmp_path):
     assert loaded.plotter_revision_output == "revised"
     assert loaded.continuity_output == '{"verdict": "approve"}'
     assert loaded.premise_summary == "short"
+    assert loaded.style_sample == "The rain came sideways."
+    assert loaded.style_guide == "Short sentences. Weather as mood."
     assert loaded.context_elements[0].label == "Premise"
 
 
