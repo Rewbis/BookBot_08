@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BookBot 08</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=6">
+    <link rel="stylesheet" href="/static/css/style.css?v=7">
 </head>
 
 <body>
@@ -250,6 +250,24 @@
 
                 <hr>
 
+                <!-- Character Voices -->
+                <div class="dump-section" id="voices-section">
+                    <div class="dump-header">
+                        <div>
+                            <h3>Character Voices</h3>
+                            <p class="section-hint">One voice profile per principal character, optionally split into life stages (child, youth, adult, elderly…) with chapter ranges. Phase C injects only the stage active for the chapter being written, so a character can age across the book. Generate from the Characters slot, then edit freely.</p>
+                        </div>
+                        <div class="button-row" style="gap:0.5rem; flex-wrap:wrap; align-items:center;">
+                            <button id="btn-generate-voices" class="btn-primary btn-sm">Generate from Characters</button>
+                            <button id="btn-add-voice" class="btn-secondary btn-sm">+ Add Character</button>
+                            <span id="voices-status" class="status-text"></span>
+                        </div>
+                    </div>
+                    <div id="voices-list"></div>
+                </div>
+
+                <hr>
+
                 <!-- Plot Generation (plotter/antagonist loop) -->
                 <div class="generation-controls">
                     <h3>Plot Generation</h3>
@@ -357,16 +375,17 @@
     </div>
 
     <!-- Scripts -->
-    <script src="/static/js/context_panel.js?v=6"></script>
-    <script src="/static/js/dump_panel.js?v=6"></script>
-    <script src="/static/js/llm_panel.js?v=6"></script>
-    <script src="/static/js/chapter_panel.js?v=6"></script>
-    <script src="/static/js/snapshot.js?v=6"></script>
-    <script src="/static/js/chapter_c_panel.js?v=6"></script>
-    <script src="/static/js/architecture_panel.js?v=6"></script>
-    <script src="/static/js/research_panel.js?v=6"></script>
-    <script src="/static/js/style_panel.js?v=6"></script>
-    <script src="/static/js/app.js?v=6"></script>
+    <script src="/static/js/context_panel.js?v=7"></script>
+    <script src="/static/js/dump_panel.js?v=7"></script>
+    <script src="/static/js/llm_panel.js?v=7"></script>
+    <script src="/static/js/chapter_panel.js?v=7"></script>
+    <script src="/static/js/snapshot.js?v=7"></script>
+    <script src="/static/js/chapter_c_panel.js?v=7"></script>
+    <script src="/static/js/architecture_panel.js?v=7"></script>
+    <script src="/static/js/research_panel.js?v=7"></script>
+    <script src="/static/js/style_panel.js?v=7"></script>
+    <script src="/static/js/voices_panel.js?v=7"></script>
+    <script src="/static/js/app.js?v=7"></script>
 </body>
 
 </html>

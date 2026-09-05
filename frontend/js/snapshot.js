@@ -17,7 +17,8 @@ window.Snapshot = {
 
         const dumpData = window.DumpPanel ? window.DumpPanel.exportForSnapshot() : {};
         const llmData   = window.LLMPanel   ? window.LLMPanel.exportForSnapshot()   : {};
-        const styleData = window.StylePanel ? window.StylePanel.exportForSnapshot() : {};
+        const styleData  = window.StylePanel  ? window.StylePanel.exportForSnapshot()  : {};
+        const voicesData = window.VoicesPanel ? window.VoicesPanel.exportForSnapshot() : {};
         const projectData = {
             id: window.currentProjectId || "",
             title: title,
@@ -31,7 +32,8 @@ window.Snapshot = {
             updated_at: new Date().toISOString(),
             ...dumpData,
             ...llmData,
-            ...styleData
+            ...styleData,
+            ...voicesData
         };
 
         try {
@@ -156,7 +158,8 @@ window.Snapshot = {
 
         if (window.DumpPanel) window.DumpPanel.loadFromSnapshot(project);
         if (window.LLMPanel)   window.LLMPanel.loadFromSnapshot(project);
-        if (window.StylePanel) window.StylePanel.restoreFromSnapshot(project);
+        if (window.StylePanel)  window.StylePanel.restoreFromSnapshot(project);
+        if (window.VoicesPanel) window.VoicesPanel.restoreFromSnapshot(project);
 
         window.ContextPanel.contextElements = project.context_elements || [];
         window.ContextPanel.renderContextPanel();

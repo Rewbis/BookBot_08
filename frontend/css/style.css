@@ -645,6 +645,34 @@ hr { border: 0; border-top: 1px solid var(--border-color); margin: 20px 0; }
     flex-shrink: 0;
 }
 
+/* Character voice cards */
+.voice-card {
+    background: #0f1b2d;
+    border: 1px solid #2a3a4a;
+    border-radius: 5px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.voice-stage {
+    border-left: 3px solid var(--btn-primary);
+    padding-left: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.voice-stage-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.voice-stage-label {
+    background: var(--panel-bg); color: var(--text-color);
+    border: 1px solid var(--border-color); border-radius: 3px; padding: 2px 6px; font-size: 0.8rem;
+}
+.voice-num { width: 60px; font-size: 0.82rem; }
+.voice-range { color: #999; font-size: 0.8rem; }
+.voice-range-hint { color: #666; font-size: 0.72rem; }
+.voice-text { width: 100%; box-sizing: border-box; font-size: 0.85rem; min-height: 4em; }
+
 /* ── Architecture Tab ────────────────────────────────────────────── */
 #architecture-container {
     padding: 4px 0 40px;

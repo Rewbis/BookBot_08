@@ -60,6 +60,11 @@ crud_matrix:
       model: claude-sonnet-5
       num_ctx: API
 
+    - id: voices_derive
+      label: "Character Voices\n(derive)"
+      model: claude-sonnet-5
+      num_ctx: API
+
     - id: plotter
       label: Plotter
       model: claude-sonnet-5
@@ -232,6 +237,22 @@ crud_matrix:
             human_slots:  "U"
             enricher:     "R"
             polish:       "R"
+
+        - field: "voice_profiles[ ] — name / stages[ ]{label, from_chapter, to_chapter, voice}"
+          list_field: true
+          desc: >
+            Per-character voice profiles, each split into stages with explicit chapter
+            ranges (to_chapter 0 = to the end) so a character's speech can age across
+            the book. Generated from the Characters slot, human-edited. Not a context
+            element: Phase C sends the full list and the backend injects only the stage
+            active for the chapter being written (backend/utils/voices.py).
+          cells:
+            voices_derive: "C"
+            human_slots:   "U,D"
+            drafter:       "R"
+            enricher:      "R"
+            critic:        "R"
+            polish:        "R"
 
         - field: "planted_clues[ ] — label / description"
           list_field: true
@@ -482,6 +503,14 @@ model_routing:
       phase_c3b: "—"
 
     - agent: "Style Guide (derive)"
+      phase_a:   claude-sonnet-5
+      phase_b:   "—"
+      phase_c1:  "—"
+      phase_c2:  "—"
+      phase_c3a: "—"
+      phase_c3b: "—"
+
+    - agent: "Character Voices (derive)"
       phase_a:   claude-sonnet-5
       phase_b:   "—"
       phase_c1:  "—"

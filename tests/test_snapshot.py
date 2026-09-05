@@ -2,7 +2,7 @@ import json
 import re
 from datetime import datetime
 
-from backend.models.schemas import BookProject, ContextElement, PlantedClue
+from backend.models.schemas import BookProject, ContextElement, PlantedClue, VoiceProfile, VoiceStage
 from backend.utils.snapshot import load_snapshot, save_snapshot, suggest_filename
 
 
@@ -46,6 +46,10 @@ def test_save_load_round_trip_preserves_phase_a_state(tmp_path):
     p.premise_summary = "short"
     p.style_sample = "The rain came sideways."
     p.style_guide = "Short sentences. Weather as mood."
+    p.voice_profiles = [VoiceProfile(id="v1", name="Keel", stages=[
+        VoiceStage(label="youth", from_chapter=1, to_chapter=5, voice="Quick, cocky."),
+        VoiceStage(label="adult", from_chapter=6, to_chapter=0, voice="Measured, tired."),
+    ])]
     p.context_elements = [
         ContextElement(
             id="e1", label="Premise", content="Once upon a time", element_type="premise",
@@ -72,6 +76,9 @@ def test_save_load_round_trip_preserves_phase_a_state(tmp_path):
     assert loaded.premise_summary == "short"
     assert loaded.style_sample == "The rain came sideways."
     assert loaded.style_guide == "Short sentences. Weather as mood."
+    assert loaded.voice_profiles[0].name == "Keel"
+    assert [s.label for s in loaded.voice_profiles[0].stages] == ["youth", "adult"]
+    assert loaded.voice_profiles[0].stages[1].to_chapter == 0
     assert loaded.context_elements[0].label == "Premise"
     assert loaded.context_elements[0].compressed is False
     assert loaded.context_elements[0].content_full == ""

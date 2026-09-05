@@ -72,7 +72,9 @@ window.ChapterCPanel = {
         }
 
         const clues_due = this.cluesDueFor(ch);
-        return { context_elements, prior_chapter_summaries, preceding_chapter_tail, clues_due };
+        // Full profile list; the backend selects the stage active for this chapter.
+        const voice_profiles = (window.VoicesPanel && window.VoicesPanel.profiles) || [];
+        return { context_elements, prior_chapter_summaries, preceding_chapter_tail, clues_due, voice_profiles };
     },
 
     renderAllChapters() {
@@ -253,7 +255,7 @@ window.ChapterCPanel = {
         ch.phase_c_status = 'actions';
         this.renderAllChapters();
 
-        const { context_elements, prior_chapter_summaries, preceding_chapter_tail, clues_due } =
+        const { context_elements, prior_chapter_summaries, preceding_chapter_tail, clues_due, voice_profiles } =
             this.buildSharedContext(ch);
 
         const basePayload = {
@@ -261,6 +263,7 @@ window.ChapterCPanel = {
             prior_chapter_summaries,
             preceding_chapter_tail,
             clues_due,
+            voice_profiles,
             chapter_number: ch.number,
             chapter_title: ch.title,
             chapter_skeleton: ch.skeleton || '',
@@ -384,7 +387,7 @@ window.ChapterCPanel = {
         this.isGenerating = true;
         document.body.style.cursor = 'wait';
 
-        const { context_elements, prior_chapter_summaries, preceding_chapter_tail, clues_due } =
+        const { context_elements, prior_chapter_summaries, preceding_chapter_tail, clues_due, voice_profiles } =
             this.buildSharedContext(ch);
 
         // full_text is the human-edited text once it exists — it must win over the
@@ -396,6 +399,7 @@ window.ChapterCPanel = {
             prior_chapter_summaries,
             preceding_chapter_tail,
             clues_due,
+            voice_profiles,
             chapter_number: ch.number,
             chapter_title: ch.title,
             chapter_skeleton: ch.skeleton || '',

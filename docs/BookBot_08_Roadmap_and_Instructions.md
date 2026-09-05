@@ -36,6 +36,7 @@ BookBot_08/
 │   └── utils/
 │       ├── llm_json.py          # parse_json_response(): strips ```json fences, json.loads
 │       ├── model_config.py      # GET /api/llm/config payload: model, context window, warn threshold, $/MTok
+│       ├── voices.py            # stage_for_chapter / voices_for_chapter / build_voices_block
 │       ├── logger.py            # per-call JSON logs to /logs/
 │       ├── snapshot.py          # save/load/suggest_filename
 │       └── usage_tracker.py     # session token + USD accumulator (Claude vs local)
@@ -48,6 +49,7 @@ BookBot_08/
 │       ├── dump_panel.js        # creative dump → Parse & Structure → slot cards + planted clues
 │       ├── research_panel.js    # Tavily URL/search → raw + summary → Approve → Context; paste fallback
 │       ├── style_panel.js       # Writing Style: load/paste sample → derive style guide → Approve → Context
+│       ├── voices_panel.js      # Character Voices: per-character profiles staged by chapter range
 │       ├── llm_panel.js         # Phase A loop: Plotter → Antagonist → Revision → Continuity → Summarise
 │       ├── chapter_panel.js     # Phase B: chapter cards, Chapter Plan, Skeleton, approve
 │       ├── chapter_c_panel.js   # Phase C: draft → enrich → critic → polish → summary; bulk generate
@@ -111,6 +113,7 @@ Creative Dump → Parse & Structure → [Human slot review → Approve → Conte
 | `/continuity` | `context_elements`, `plotter_revision_output`, `planted_clues[]`, `continuity_issues?` | `{verdict, summary, issues[], clue_updates[]}` | JSON; `verdict` is `approve` or `revise` |
 | `/summarise-premise` | `context_elements`, `premise` | `{content}` | 200–300 words. Shown with **Edit** + **Approve → Context**; not auto-added |
 | `/derive-style-guide` | `style_sample` | `{content}` | 250–350 word style fingerprint written as instructions to a writer |
+| `/generate-voices` | `characters`, `premise`, `role_constraints`, `target_chapter_count` | `{voice_profiles[]}` | JSON; one profile per principal character, staged by chapter range when the premise spans a life |
 
 **Continuity response schema:**
 ```json
@@ -141,6 +144,12 @@ Load a `.txt`/`.md` (read client-side) or paste a sample of the author's prose. 
 
 Restored from Authorbot_04, which fed the raw sample to its De-AI editor as the target.
 
+### Character Voices (Phase A section)
+
+**Generate from Characters** → one profile per principal character: `{name, stages: [{label, from_chapter, to_chapter, voice}]}`. When the premise spans a large stretch of a character's life the model splits them into stages (child / youth / adult / elderly…) with contiguous chapter ranges; otherwise one stage `all`. Every field is editable; `+ Stage` / `+ Add Character` for manual entry; `to_chapter 0` = to the end.
+
+Voices are **not** context elements. Phase C sends the full `voice_profiles` list on every `ChapterWriteRequest`; `backend/utils/voices.py` selects the stage for `chapter_number` (range match → latest stage starting at or before → first stage) and renders a *Character Voices (this chapter)* block for Draft, Enrich, Critic, and Polish. Enrich is told that block overrides its own instincts about how a character would talk; Critic is told to quote any line that breaks a voice.
+
 ### Phase B — Chapter Outlines
 
 | Endpoint | Input | Output |
@@ -156,7 +165,7 @@ Restored from Authorbot_04, which fed the raw sample to its De-AI editor as the 
 Draft (Pass 1) → Enrich (Pass 2) → Summarise-enrich → Critic (3a) → Polish (3b) → Summary
 ```
 
-All Phase C endpoints share `ChapterWriteRequest`: `context_elements`, `prior_chapter_summaries[{number,title,summary}]`, `preceding_chapter_tail`, `chapter_number`, `chapter_title`, `chapter_skeleton`, `current_draft`, `critic_feedback`, `target_words_per_chapter`.
+All Phase C endpoints share `ChapterWriteRequest`: `context_elements`, `prior_chapter_summaries[{number,title,summary}]`, `preceding_chapter_tail`, `chapter_number`, `chapter_title`, `chapter_skeleton`, `current_draft`, `critic_feedback`, `target_words_per_chapter`, `clues_due[{label,description,role}]`, `voice_profiles[]`.
 
 | Endpoint | Reads | Output |
 |---|---|---|
@@ -180,6 +189,7 @@ All Phase C endpoints share `ChapterWriteRequest`: `context_elements`, `prior_ch
 **`BookProject`**
 - `creative_dump`, `role_constraints`, `premise`, `premise_summary`, `characters`, `world_notes`
 - `style_sample`, `style_guide` — see Writing Style
+- `voice_profiles: List[VoiceProfile]` — `{id, name, stages: [VoiceStage{label, from_chapter, to_chapter, voice}]}`; see Character Voices
 - `planted_clues: List[PlantedClue]`
 - `plotter_output`, `antagonist_output`, `plotter_revision_output`, `continuity_output` (JSON string) — persisted so a snapshot survives reload mid-loop
 - `genre`, `tone`, `audience` — legacy, kept so old snapshots load
@@ -223,8 +233,9 @@ The matrix includes a `local_explicit` column and `has_explicit_content` / `expl
 cd E:\Coding\BookBot_08 && .venv\Scripts\python.exe -m pytest -q
 ```
 
-27 tests (as of 2026-09-05), no network, no API keys:
+35 tests (as of 2026-09-05), no network, no API keys:
 - `test_model_config.py` — `/api/llm/config` defaults and env overrides
+- `test_voices.py` — stage selection (range, open-ended, gaps, before-first), empty voices skipped, prompt block format
 - `test_snapshot.py` — filename sanitising, save/load round-trip of all Phase A fields, legacy snapshots without new fields
 - `test_project_api.py` — `/api/project` new/save/list/load/suggest-filename via `TestClient` with `PROJECTS_DIR` pointed at a temp dir
 - `test_llm_json.py` — fence-tolerant JSON parsing used by continuity, parse-dump, chapter-plan
@@ -284,7 +295,7 @@ Cover blurb, illustration prompts per chapter, EPUB via `ebooklib`, KDP validati
 
 - Local explicit-content pass is unimplemented; the hybrid-model design is aspirational until then.
 - Bulk Generate auto-approves; no pause-for-review between chapters.
-- No per-character voice profiles; character state (knowledge, injuries, location) is not tracked between chapters beyond the free-text summary.
+- Character state (knowledge, injuries, location) is not tracked between chapters beyond the free-text summary — per-chapter continuity/state is the next planned feature.
 - Context window is a flat ordered list — nothing is retrieved per-chapter by relevance; everything enabled goes into every call.
 - Token counter is a cl100k approximation.
 - Frontend has no automated tests.

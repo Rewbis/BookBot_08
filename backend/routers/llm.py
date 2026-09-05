@@ -9,6 +9,7 @@ from backend.services.ollama_service import OllamaService
 from backend.services.claude_service import ClaudeService
 from backend.utils.llm_json import parse_json_response
 from backend.utils.model_config import get_model_config
+from backend.utils.voices import build_voices_block, voices_for_chapter
 
 router = APIRouter(prefix="/api/llm", tags=["llm"])
 ollama_service = OllamaService()
@@ -74,6 +75,8 @@ class ChapterWriteRequest(BaseModel):
     target_words_per_chapter: int = 1500
     # Planted clues scheduled for this chapter: [{label, description, role: "plant"|"payoff"}]
     clues_due: List[dict] = []
+    # All voice profiles; the stage active for chapter_number is selected server-side.
+    voice_profiles: List[dict] = []
     project_title: str = "unknown"
 
 class ParseDumpRequest(BaseModel):
@@ -100,6 +103,13 @@ class SummariseEnrichRequest(BaseModel):
 
 class DeriveStyleGuideRequest(BaseModel):
     style_sample: str
+    project_title: str = "unknown"
+
+class GenerateVoicesRequest(BaseModel):
+    characters: str
+    premise: str = ""
+    role_constraints: str = ""
+    target_chapter_count: int = 20
     project_title: str = "unknown"
 
 def build_user_message(context_elements: List[ContextElementBase]) -> str:
@@ -272,6 +282,8 @@ async def run_chapter_draft(req: ChapterWriteRequest):
         "Keep character voices, motivations, and emotional states consistent with their profiles.\n"
         "If a 'Clues Due In This Chapter' section is present, every item in it must appear in the prose — "
         "plants woven in naturally, payoffs resolved on the page.\n"
+        "If a 'Character Voices' section is present, it governs how those characters speak and think "
+        "in this chapter — including the [DIALOGUE: ...] intents you write for them.\n"
         f"Target length: approximately {req.target_words_per_chapter} words.\n"
         "Return ONLY the chapter prose. No commentary, no headers."
     )
@@ -281,6 +293,7 @@ async def run_chapter_draft(req: ChapterWriteRequest):
     if req.preceding_chapter_tail:
         user_msg += f"## End of Previous Chapter\n{req.preceding_chapter_tail}\n\n"
     user_msg += build_clues_due_block(req.clues_due)
+    user_msg += build_voices_block(voices_for_chapter(req.voice_profiles, req.chapter_number))
     user_msg += f"## Chapter to Write\nChapter {req.chapter_number}: {req.chapter_title}\n\nSkeleton:\n{req.chapter_skeleton}\n"
 
     messages = [
@@ -296,7 +309,9 @@ async def run_chapter_enrich(req: ChapterWriteRequest):
         "You are a prose editor performing a single enrichment pass on a draft chapter. Do all of the following in one pass:\n"
         "1. DIALOGUE: Replace every [DIALOGUE: ...] placeholder with natural, character-appropriate spoken dialogue. "
         "Each character must speak in their established voice — reflecting their background, education, and emotional state. "
-        "Dialogue must reveal character and advance the scene.\n"
+        "Dialogue must reveal character and advance the scene. If a 'Character Voices' section is "
+        "present, every line for those characters must match the voice described there — that "
+        "section overrides your own instincts about how they would talk.\n"
         "2. SENSORY: Layer in any missing sensory detail (sound, smell, texture, temperature) where it serves atmosphere. "
         "Do not duplicate detail already present.\n"
         "3. STYLE: Align vocabulary, sentence rhythm, and register with the stated genre, tone, and audience. "
@@ -308,6 +323,7 @@ async def run_chapter_enrich(req: ChapterWriteRequest):
         "Do not change plot events. Return the complete enriched chapter text. No commentary."
     )
     user_msg = build_user_message(req.context_elements)
+    user_msg += build_voices_block(voices_for_chapter(req.voice_profiles, req.chapter_number))
     user_msg += f"## Chapter Draft\n{req.current_draft}\n"
 
     messages = [
@@ -328,6 +344,7 @@ async def run_chapter_critic(req: ChapterWriteRequest):
         "Be constructive — suggest what should change and why. "
         "If a 'Clues Due In This Chapter' section is present, check each item: state whether it "
         "was planted or paid off in the draft, and flag any that are missing or too heavy-handed. "
+        "If a 'Character Voices' section is present, quote any line that breaks a character's voice. "
         "List your critiques clearly and concisely."
     )
     user_msg = build_user_message(req.context_elements)
@@ -335,6 +352,7 @@ async def run_chapter_critic(req: ChapterWriteRequest):
         user_msg += f"## Chapter {summary.get('number')} Summary: {summary.get('title')}\n{summary.get('summary')}\n\n"
 
     user_msg += build_clues_due_block(req.clues_due)
+    user_msg += build_voices_block(voices_for_chapter(req.voice_profiles, req.chapter_number))
     user_msg += f"## Chapter Draft\n{req.current_draft}\n"
     
     if req.critic_feedback:
@@ -359,10 +377,12 @@ async def run_chapter_polish(req: ChapterWriteRequest):
         "specifically flagged them as wrong. "
         "If the context contains a 'Style Guide', every sentence you touch must conform to it; "
         "if it contains a 'Writing Sample', match that sample's rhythm and register rather than "
-        "a neutral literary default.\n"
+        "a neutral literary default. If a 'Character Voices' section is present, keep every line "
+        "of dialogue and interior monologue inside those voices.\n"
         f"{DE_AI_RULES}"
     )
     user_msg = build_user_message(req.context_elements)
+    user_msg += build_voices_block(voices_for_chapter(req.voice_profiles, req.chapter_number))
     user_msg += f"## Chapter Draft\n{req.current_draft}\n"
     user_msg += f"## Critic Feedback\n{req.critic_feedback}\n"
     
@@ -484,6 +504,47 @@ async def run_derive_style_guide(req: DeriveStyleGuideRequest):
     ]
     result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
+
+
+@router.post("/generate-voices")
+async def run_generate_voices(req: GenerateVoicesRequest):
+    sys_prompt = (
+        "You are a dialogue and voice coach for fiction. Given character sketches and the story "
+        "premise, write a voice profile for each principal character so a writer can keep every "
+        "line of their dialogue and interior monologue consistent.\n\n"
+        "Each voice text is 120-200 words covering: vocabulary level and diction; sentence rhythm "
+        "and length; verbal tics, favourite phrases, and what they never say; how the voice shifts "
+        "under stress or with different people; interior voice if they carry point of view; and "
+        "two or three short example lines in quotation marks.\n\n"
+        "STAGES: if the premise spans a large stretch of a character's life (childhood to old age, "
+        "decades passing), split that character into stages — e.g. child, youth, adult, elderly — "
+        "each with a contiguous chapter range across the book, and make each stage's voice show how "
+        "age and experience changed their speech. Otherwise give one stage labelled \"all\".\n"
+        f"The book has {req.target_chapter_count} chapters; to_chapter 0 means 'to the end'.\n\n"
+        "Return ONLY a valid JSON object — no markdown, no code fences:\n"
+        "{\n"
+        '  "voice_profiles": [\n'
+        '    {"name": "Character name", "stages": [\n'
+        '      {"label": "all | child | youth | adult | elderly | <custom>", "from_chapter": 1, '
+        '"to_chapter": 0, "voice": "..."}\n'
+        "    ]}\n"
+        "  ]\n"
+        "}\n"
+        "Cover at most six characters unless more are clearly principal."
+    )
+    user_msg = ""
+    if req.role_constraints:
+        user_msg += f"## Role & Constraints\n{req.role_constraints}\n\n"
+    if req.premise:
+        user_msg += f"## Premise\n{req.premise}\n\n"
+    user_msg += f"## Characters\n{req.characters}\n"
+    messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": user_msg},
+    ]
+    raw = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    data = parse_json_response(raw)
+    return {"voice_profiles": data.get("voice_profiles", [])}
 
 
 @router.post("/chapter-summarise-enrich")

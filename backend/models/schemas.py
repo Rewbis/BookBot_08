@@ -56,6 +56,22 @@ class PlantedClue(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
+class VoiceStage(BaseModel):
+    """How a character speaks/thinks during a span of chapters (child, youth, adult, elderly, all...)."""
+    label: str = "all"
+    from_chapter: int = 1
+    to_chapter: int = 0        # 0 = open-ended (to the last chapter)
+    voice: str = ""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+class VoiceProfile(BaseModel):
+    id: str
+    name: str
+    stages: List[VoiceStage] = []
+
+    model_config = ConfigDict(populate_by_name=True)
+
 class BookProject(BaseModel):
     id: str
     title: str
@@ -75,6 +91,9 @@ class BookProject(BaseModel):
     # Writing style: raw author sample + derived guide (both optionally promoted to context)
     style_sample: str = ""
     style_guide: str = ""
+    # Per-character voice profiles, optionally staged by chapter range; Phase C injects
+    # only the stage active for the chapter being written.
+    voice_profiles: List[VoiceProfile] = []
     planted_clues: List[PlantedClue] = []
     # Phase A loop outputs — persisted so snapshots survive a reload mid-loop
     plotter_output: str = ""
