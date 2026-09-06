@@ -176,6 +176,15 @@ window.Snapshot = {
         if (window.ChapterPanel) {
             window.ChapterPanel.loadChapters(project.chapters);
         }
+        // Phase C and D render from ChapterPanel.chapters but are not re-rendered by it.
+        // Without this, a Load while on the Phase C tab (or on the phone's long page, where
+        // every phase is visible) kept showing the previous project's cards.
+        if (window.ChapterCPanel) {
+            window.ChapterCPanel.expandedIds.clear();
+            window.ChapterCPanel.clearPass();
+            window.ChapterCPanel.renderAllChapters();
+        }
+        if (window.ExportPanel) window.ExportPanel.render();
         setTimeout(() => { if (window._resizeAllOutputs) window._resizeAllOutputs(); }, 50);
     },
 
