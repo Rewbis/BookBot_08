@@ -46,6 +46,7 @@ BookBot_08/
 │   ├── index.html               # SPA shell; all <script>/<link> tags carry ?v=N cache-bust
 │   ├── css/style.css            # dark theme; mobile breakpoint at ≤1024px
 │   └── js/
+│       ├── notify.js            # 🔔 chime when agents finish: fetch wrapper counts in-flight LLM POSTs
 │       ├── app.js               # init, layout mode (tabs vs long page), divider, tooltips, auto-resize, usage polling
 │       ├── context_panel.js     # draggable/toggleable context elements + token bar
 │       ├── dump_panel.js        # creative dump → Parse & Structure → slot cards + planted clues
@@ -233,6 +234,7 @@ The matrix includes a `local_explicit` column and `has_explicit_content` / `expl
 - **Header buttons use inline `onclick`** (`New`, `Load`, `Save`, mobile tab `<select>`). `addEventListener` bindings made inside `DOMContentLoaded` did not fire on Android; inline handlers did. Do not also bind them in `app.js` — that double-fires on desktop.
 - **Layout modes** (`app.js` → `_applyLayoutMode`): ≤1024px shows every phase stacked as one long page and the header dropdown scrolls to a section; wider shows tabs. Re-applied on `resize` when the viewport crosses the breakpoint.
 - **Mobile touch:** `touch-action: manipulation` on buttons; inputs are `font-size: 16px` on mobile to stop Android's focus-zoom.
+- **Notification chime** (header 🔔/🔕, `notify.js`, preference in `localStorage`): `Notify.init()` runs first and wraps `window.fetch`, counting in-flight POSTs to `/api/llm/*` and `/api/research/*` (not `/provider`, not GETs, not token counts). When the count returns to zero and stays there for 1.5 s the run is over → one two-tone Web Audio chime (no asset files), and the tab title gets a 🔔 prefix while the page is hidden. Multi-call runs (a chapter's ~7 passes, or a whole bulk run) chime once at the end. Enabling plays the chime, which is also the user gesture browsers need before audio will play.
 - **Provider toggle** (header `#provider-select`, inline `onchange` → `window._setProvider`): `POST /api/llm/provider {provider}` returns the same payload as `GET /api/llm/config` (`provider`, `model_name`, `context_window`, `context_warn_tokens`, `input/output_cost_per_mtok`, `claude_configured`); `_applyProviderConfig` updates `currentModelName` (saved into the snapshot's `model_name`), the budget, the select, and the model label. On failure the select snaps back to the server's actual provider.
 - **Context budget** (`context_panel.js`): the token bar is scaled to `context_warn_tokens` from `GET /api/llm/config` (Claude: default 120,000, env `CONTEXT_WARN_TOKENS`, window 1,000,000; local: 75% of `OLLAMA_NUM_CTX`) and shows an estimated input $/call, or "local — free". At 80% of the threshold a *Context budget* panel lists compressible elements with the tokens each would save; ticking one swaps the element's `content` for its compressed alternative and keeps the original in `content_full` (`compressed: true`, lossless). Alternatives: `chapter_skeleton` → that chapter's `summary`/`enrich_draft_summary` (found via `source_ref` = chapter id, or the `Ch N Skeleton` label for older snapshots); `premise` → `premise_summary`. The threshold is an absolute count on purpose — long-context studies show quality falls gradually from the first tokens with no cliff at the limit, and stale/duplicate material degrades output more than length does.
 - **Textareas:** `.streaming-output` auto-grows to content (`autoResize`), is `resize: vertical`, and re-sizes after `llm:complete` and after snapshot load.
@@ -270,7 +272,8 @@ pnpm install && pnpm check
 - `chapter_c_panel.test.js` — clue-to-chapter matching, `cluesDueFor`, `priorStateFor` across gaps, `markDownstreamStale`, `buildSharedContext` (approved-only summaries, 500-word tail)
 - `context_panel.test.js` — token estimate, `compressedAlternative` (source_ref, label fallback, premise), `exportElementsForLLM` ordering
 - `app.test.js` — `formatContinuityReport`, layout-mode functions defined at parse time, `_applyProviderConfig`
-- (32 JS tests as of 2026-09-06)
+- `notify.test.js` — request classification, idle debounce (one chime per run, cancelled by a new call), fetch wrapper transparency, toggle persistence, hidden-tab title
+- (44 JS tests as of 2026-09-06)
 
 Not covered on the JS side: anything that touches the DOM through `init()` or makes `fetch` calls.
 

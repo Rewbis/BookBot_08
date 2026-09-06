@@ -4,6 +4,7 @@ import globals from "globals";
 // The app's modules are classic scripts that publish themselves on window.*
 // and call each other through those globals.
 const appGlobals = {
+  Notify: "readonly",
   ContextPanel: "readonly",
   DumpPanel: "readonly",
   LLMPanel: "readonly",

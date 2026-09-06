@@ -76,6 +76,7 @@ window._setProvider = async function(name) {
 document.addEventListener('DOMContentLoaded', async () => {
     // 1. Initialize modules — fail loud: a broken init should stop here, not surface
     //    later as an unrelated TypeError.
+    window.Notify.init();          // first: wraps fetch before any agent call
     window.ContextPanel.init();
     window.DumpPanel.init();
     window.LLMPanel.init();

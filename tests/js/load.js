@@ -11,6 +11,7 @@ export function loadScript(relPath) {
 }
 
 export const APP_SCRIPTS = [
+  "frontend/js/notify.js",
   "frontend/js/context_panel.js",
   "frontend/js/dump_panel.js",
   "frontend/js/llm_panel.js",
