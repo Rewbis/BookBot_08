@@ -20,7 +20,7 @@
 
 meta:
   github: https://github.com/Rewbis/BookBot_08
-  last_updated: "2026-09-05"
+  last_updated: "2026-09-06"
   # Agents marked (planned) in earlier versions are now implemented:
   # continuity, summariser_premise, summariser_enrich, summariser_chapter
   notation:
