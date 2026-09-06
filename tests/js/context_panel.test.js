@@ -49,6 +49,17 @@ describe("compressedAlternative", () => {
   });
 });
 
+describe("setBudget", () => {
+  it("accepts a zero input cost for the local model", () => {
+    CP().updateTokenTotal = () => {};
+    CP().setBudget({ context_warn_tokens: 12288, context_window: 16384, input_cost_per_mtok: 0 });
+    expect(CP().budget).toEqual({ warnTokens: 12288, contextWindow: 16384, inputCostPerMtok: 0 });
+    CP().setBudget({ input_cost_per_mtok: 2 });
+    expect(CP().budget.inputCostPerMtok).toBe(2);
+    expect(CP().budget.warnTokens).toBe(12288);     // untouched when absent
+  });
+});
+
 describe("exportElementsForLLM", () => {
   it("sends enabled elements in order with label + content only", () => {
     CP().contextElements = [

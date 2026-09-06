@@ -29,8 +29,9 @@ BookBot_08/
 │   ├── models/
 │   │   └── schemas.py           # Pydantic v2: BookProject, Chapter, ContextElement, PlantedClue
 │   ├── services/
+│   │   ├── llm_provider.py      # runtime switch: every agent calls provider.generate(); claude | ollama
 │   │   ├── claude_service.py    # AsyncAnthropic wrapper (claude-sonnet-5, max_tokens 16000)
-│   │   ├── ollama_service.py    # Ollama /api/chat wrapper + strip_thinking(); currently health-check only
+│   │   ├── ollama_service.py    # Ollama /api/chat wrapper + strip_thinking()
 │   │   ├── tavily_service.py    # Tavily /search and /extract (Bearer auth)
 │   │   └── token_service.py     # tiktoken cl100k approximation
 │   └── utils/
@@ -78,9 +79,10 @@ BookBot_08/
 - All LLM state is plain Python dicts / JSON. No LangChain, no framework.
 - Every LLM call logs full input + output to `/logs/`.
 - Frontend is vanilla HTML/CSS/JS, no build step.
-- **Claude Sonnet 5** (`claude-sonnet-5`) via `AsyncAnthropic` for every agent. `max_tokens=16000` (8192 truncated the Antagonist).
+- **One provider switch for every agent.** `backend/services/llm_provider.py` routes `provider.generate()` to either **Claude Sonnet 5** (`claude-sonnet-5` via `AsyncAnthropic`, `max_tokens=16000`) or the **local Ollama model** (`OLLAMA_MODEL`, `num_ctx` from `OLLAMA_NUM_CTX`). Startup default from `LLM_PROVIDER`; the header **☁ Claude / ⚙ Local** toggle changes it at runtime via `POST /api/llm/provider` (refuses Claude without a key, refuses Local if Ollama is down). The context budget follows the active model — 1M window / 120k warn / $ per call for Claude; 16k window / 12k warn / free for local.
   - Sonnet 5 returns `ThinkingBlock` before `TextBlock`. Always `next(b.text for b in response.content if b.type == "text")`, never `content[0].text`.
-- **Local Ollama model is not currently invoked for generation.** It is health-checked at startup and in the header dot. The planned `[EXPLICIT: …]` fill pass is not built (see Roadmap).
+  - The local path strips `<think>…</think>` reasoning via `strip_thinking()`; JSON endpoints tolerate code fences either way.
+- The planned `[EXPLICIT: …]` fill pass (local model for specific passages inside a Claude-written chapter) is still not built — the toggle is all-or-nothing per call.
 - `context_elements` is human-curated. Agents read it; only humans write to it, via *Approve → Context* / *Accept* buttons.
 - `planted_clues[].status` is `active | blocked`. Agents never delete a clue — Continuity sets `blocked` with a reason so the human can resolve and reinstate.
 - `docs/architecture_matrix.yaml` is hand-edited; the Architecture tab loads it read-only.
@@ -231,7 +233,8 @@ The matrix includes a `local_explicit` column and `has_explicit_content` / `expl
 - **Header buttons use inline `onclick`** (`New`, `Load`, `Save`, mobile tab `<select>`). `addEventListener` bindings made inside `DOMContentLoaded` did not fire on Android; inline handlers did. Do not also bind them in `app.js` — that double-fires on desktop.
 - **Layout modes** (`app.js` → `_applyLayoutMode`): ≤1024px shows every phase stacked as one long page and the header dropdown scrolls to a section; wider shows tabs. Re-applied on `resize` when the viewport crosses the breakpoint.
 - **Mobile touch:** `touch-action: manipulation` on buttons; inputs are `font-size: 16px` on mobile to stop Android's focus-zoom.
-- **Context budget** (`context_panel.js`): the token bar is scaled to `context_warn_tokens` from `GET /api/llm/config` (default 120,000, env `CONTEXT_WARN_TOKENS`; window default 1,000,000, env `CLAUDE_CONTEXT_WINDOW`) and shows an estimated input $/call. At 80% of the threshold a *Context budget* panel lists compressible elements with the tokens each would save; ticking one swaps the element's `content` for its compressed alternative and keeps the original in `content_full` (`compressed: true`, lossless). Alternatives: `chapter_skeleton` → that chapter's `summary`/`enrich_draft_summary` (found via `source_ref` = chapter id, or the `Ch N Skeleton` label for older snapshots); `premise` → `premise_summary`. The threshold is an absolute count on purpose — long-context studies show quality falls gradually from the first tokens with no cliff at the limit, and stale/duplicate material degrades output more than length does.
+- **Provider toggle** (header `#provider-select`, inline `onchange` → `window._setProvider`): `POST /api/llm/provider {provider}` returns the same payload as `GET /api/llm/config` (`provider`, `model_name`, `context_window`, `context_warn_tokens`, `input/output_cost_per_mtok`, `claude_configured`); `_applyProviderConfig` updates `currentModelName` (saved into the snapshot's `model_name`), the budget, the select, and the model label. On failure the select snaps back to the server's actual provider.
+- **Context budget** (`context_panel.js`): the token bar is scaled to `context_warn_tokens` from `GET /api/llm/config` (Claude: default 120,000, env `CONTEXT_WARN_TOKENS`, window 1,000,000; local: 75% of `OLLAMA_NUM_CTX`) and shows an estimated input $/call, or "local — free". At 80% of the threshold a *Context budget* panel lists compressible elements with the tokens each would save; ticking one swaps the element's `content` for its compressed alternative and keeps the original in `content_full` (`compressed: true`, lossless). Alternatives: `chapter_skeleton` → that chapter's `summary`/`enrich_draft_summary` (found via `source_ref` = chapter id, or the `Ch N Skeleton` label for older snapshots); `premise` → `premise_summary`. The threshold is an absolute count on purpose — long-context studies show quality falls gradually from the first tokens with no cliff at the limit, and stale/duplicate material degrades output more than length does.
 - **Textareas:** `.streaming-output` auto-grows to content (`autoResize`), is `resize: vertical`, and re-sizes after `llm:complete` and after snapshot load.
 - **Tooltips** are `position: fixed`, positioned in JS from `getBoundingClientRect()`, so they escape the context panel's `overflow-y: auto`.
 
@@ -243,8 +246,9 @@ The matrix includes a `local_explicit` column and `has_explicit_content` / `expl
 cd E:\Coding\BookBot_08 && .venv\Scripts\python.exe -m pytest -q
 ```
 
-44 tests (as of 2026-09-05), no network, no API keys:
-- `test_model_config.py` — `/api/llm/config` defaults and env overrides
+52 tests (as of 2026-09-06), no network, no API keys:
+- `test_model_config.py` — `/api/llm/config` for both providers, env overrides
+- `test_llm_provider.py` — provider default/env/validation, routing to the active service, lazy construction
 - `test_story_state.py` — state normalisation (missing/wrong-typed keys, extras kept), `has_content`, prompt block
 - `test_snapshot.py` also covers chapter continuity fields and legacy chapters without them
 - `test_voices.py` — stage selection (range, open-ended, gaps, before-first), empty voices skipped, prompt block format
@@ -265,7 +269,8 @@ pnpm install && pnpm check
 - `scripts_load.test.js` — every module parses and evaluates; expected `window.*` globals exist (the syntax guard that was missing during the mobile debugging)
 - `chapter_c_panel.test.js` — clue-to-chapter matching, `cluesDueFor`, `priorStateFor` across gaps, `markDownstreamStale`, `buildSharedContext` (approved-only summaries, 500-word tail)
 - `context_panel.test.js` — token estimate, `compressedAlternative` (source_ref, label fallback, premise), `exportElementsForLLM` ordering
-- `app.test.js` — `formatContinuityReport`, layout-mode functions defined at parse time
+- `app.test.js` — `formatContinuityReport`, layout-mode functions defined at parse time, `_applyProviderConfig`
+- (32 JS tests as of 2026-09-06)
 
 Not covered on the JS side: anything that touches the DOM through `init()` or makes `fetch` calls.
 

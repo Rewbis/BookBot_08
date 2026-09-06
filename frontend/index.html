@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BookBot 08</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=9">
+    <link rel="stylesheet" href="/static/css/style.css?v=10">
 </head>
 
 <body>
@@ -24,6 +24,13 @@
                 <option value="tab-c">Phase C</option>
                 <option value="tab-arch">Architecture</option>
             </select>
+            <div class="status-indicator provider-switch" title="Which model runs every agent">
+                <select id="provider-select" class="provider-select" onchange="window._setProvider(this.value);this.blur()">
+                    <option value="claude">☁ Claude</option>
+                    <option value="ollama">⚙ Local</option>
+                </select>
+                <span id="provider-model-label" class="provider-model-label"></span>
+            </div>
             <div class="status-indicator">
                 <span id="ollama-status-dot" class="dot red"></span> Ollama
             </div>
@@ -375,17 +382,17 @@
     </div>
 
     <!-- Scripts -->
-    <script src="/static/js/context_panel.js?v=9"></script>
-    <script src="/static/js/dump_panel.js?v=9"></script>
-    <script src="/static/js/llm_panel.js?v=9"></script>
-    <script src="/static/js/chapter_panel.js?v=9"></script>
-    <script src="/static/js/snapshot.js?v=9"></script>
-    <script src="/static/js/chapter_c_panel.js?v=9"></script>
-    <script src="/static/js/architecture_panel.js?v=9"></script>
-    <script src="/static/js/research_panel.js?v=9"></script>
-    <script src="/static/js/style_panel.js?v=9"></script>
-    <script src="/static/js/voices_panel.js?v=9"></script>
-    <script src="/static/js/app.js?v=9"></script>
+    <script src="/static/js/context_panel.js?v=10"></script>
+    <script src="/static/js/dump_panel.js?v=10"></script>
+    <script src="/static/js/llm_panel.js?v=10"></script>
+    <script src="/static/js/chapter_panel.js?v=10"></script>
+    <script src="/static/js/snapshot.js?v=10"></script>
+    <script src="/static/js/chapter_c_panel.js?v=10"></script>
+    <script src="/static/js/architecture_panel.js?v=10"></script>
+    <script src="/static/js/research_panel.js?v=10"></script>
+    <script src="/static/js/style_panel.js?v=10"></script>
+    <script src="/static/js/voices_panel.js?v=10"></script>
+    <script src="/static/js/app.js?v=10"></script>
 </body>
 
 </html>

@@ -27,6 +27,23 @@ describe("formatContinuityReport", () => {
   });
 });
 
+describe("provider config", () => {
+  it("applies model name, budget, select value and label", () => {
+    document.body.innerHTML = `
+      <select id="provider-select"><option value="claude">c</option><option value="ollama">o</option></select>
+      <span id="provider-model-label"></span>`;
+    const received = [];
+    window.ContextPanel = { setBudget: cfg => received.push(cfg) };
+    const cfg = { provider: "ollama", model_name: "qwen3-local", context_warn_tokens: 12288, input_cost_per_mtok: 0 };
+    window._applyProviderConfig(cfg);
+    expect(window.currentModelName).toBe("qwen3-local");
+    expect(received).toEqual([cfg]);
+    expect(document.getElementById("provider-select").value).toBe("ollama");
+    expect(document.getElementById("provider-model-label").textContent).toBe("qwen3-local");
+    expect(() => window._applyProviderConfig(null)).not.toThrow();
+  });
+});
+
 describe("layout mode", () => {
   it("is defined at parse time, before DOMContentLoaded", () => {
     expect(window._isMobile).toBeTypeOf("function");

@@ -476,12 +476,13 @@ crud_matrix:
 # ── Model Routing Table ────────────────────────────────────────────────────────
 model_routing:
   note: >
-    Shows which model each agent uses per pipeline phase.
-    API = Anthropic Claude API (no local context window limit).
-    Local = Ollama-served model; num_ctx = 16384 tokens.
-    The local model is invoked only to fill [EXPLICIT: ...] placeholders
-    that frontier models cannot generate. Its output is flagged via
-    chapter.has_explicit_content and reviewed by the Critic.
+    Shows the default model per agent per phase. Every agent goes through
+    backend/services/llm_provider.py, so the header toggle (Claude API vs
+    local Ollama) switches ALL of them at once — the local model then runs
+    every row below with num_ctx = OLLAMA_NUM_CTX (16384). The finer-grained
+    design — local model only for [EXPLICIT: ...] placeholders inside a
+    Claude-written chapter, flagged via chapter.has_explicit_content — is
+    still not built.
 
   columns:
     - id: phase_a

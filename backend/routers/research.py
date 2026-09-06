@@ -3,11 +3,10 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 from backend.services.tavily_service import TavilyService
-from backend.services.claude_service import ClaudeService
+from backend.services.llm_provider import provider as llm
 
 router = APIRouter(prefix="/api/research", tags=["research"])
 tavily_service = TavilyService()
-claude_service = ClaudeService()
 
 
 class SearchRequest(BaseModel):
@@ -98,7 +97,7 @@ async def summarise_research(req: SummariseResearchRequest):
         {"role": "system", "content": sys_prompt},
         {"role": "user",   "content": user_msg},
     ]
-    result = await claude_service.generate(
+    result = await llm.generate(
         messages, stream=False, project_title=req.project_title
     )
     return {"content": result}

@@ -33,9 +33,9 @@ window.ContextPanel = {
 
     setBudget(cfg) {
         if (!cfg) return;
-        if (cfg.context_warn_tokens) this.budget.warnTokens      = cfg.context_warn_tokens;
-        if (cfg.context_window)      this.budget.contextWindow   = cfg.context_window;
-        if (cfg.input_cost_per_mtok) this.budget.inputCostPerMtok = cfg.input_cost_per_mtok;
+        if (cfg.context_warn_tokens)        this.budget.warnTokens       = cfg.context_warn_tokens;
+        if (cfg.context_window)             this.budget.contextWindow    = cfg.context_window;
+        if (cfg.input_cost_per_mtok != null) this.budget.inputCostPerMtok = cfg.input_cost_per_mtok; // 0 is valid (local model)
         this.updateTokenTotal();
     },
 
@@ -322,7 +322,9 @@ window.ContextPanel = {
         if (this.warnLimitEl) this.warnLimitEl.innerText = warn.toLocaleString();
         if (this.costEl) {
             const usd = total / 1_000_000 * this.budget.inputCostPerMtok;
-            this.costEl.innerText = total > 0 ? `≈ $${usd.toFixed(3)} input / call` : '';
+            this.costEl.innerText = total === 0 ? ''
+                : this.budget.inputCostPerMtok === 0 ? 'local — free'
+                : `≈ $${usd.toFixed(3)} input / call`;
         }
 
         let pct = (total / warn) * 100;

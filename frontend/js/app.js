@@ -43,6 +43,36 @@ window._switchTab = function(t) {
     window._gotoTab(t.dataset.tab);
 };
 
+// ── Model provider (Claude API vs local Ollama) — header toggle uses inline onchange ──
+window._applyProviderConfig = function(cfg) {
+    if (!cfg) return;
+    window.currentModelName = cfg.model_name;
+    if (window.ContextPanel) window.ContextPanel.setBudget(cfg);
+    const sel = document.getElementById('provider-select');
+    if (sel && cfg.provider) sel.value = cfg.provider;
+    const lbl = document.getElementById('provider-model-label');
+    if (lbl) lbl.textContent = cfg.model_name || '';
+};
+window._setProvider = async function(name) {
+    try {
+        const res = await fetch('/api/llm/provider', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider: name }),
+        });
+        const cfg = await res.json();
+        if (!res.ok) throw new Error(cfg.detail || 'switch failed');
+        window._applyProviderConfig(cfg);
+    } catch (e) {
+        console.error(e);
+        alert('Could not switch model: ' + e.message);
+        // Snap the select back to whatever the server is actually using
+        try {
+            const cur = await fetch('/api/llm/provider').then(r => r.json());
+            window._applyProviderConfig(cur);
+        } catch (_) { /* server unreachable */ }
+    }
+};
+
 document.addEventListener('DOMContentLoaded', async () => {
     // 1. Initialize modules — fail loud: a broken init should stop here, not surface
     //    later as an unrelated TypeError.
@@ -185,8 +215,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         const configRes = await fetch('/api/llm/config');
         const config = await configRes.json();
-        window.currentModelName = config.model_name;
-        window.ContextPanel.setBudget(config);
+        window._applyProviderConfig(config);
     } catch (e) {
         console.error("Failed to fetch LLM config", e);
     }

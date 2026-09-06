@@ -5,16 +5,14 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 
-from backend.services.ollama_service import OllamaService
-from backend.services.claude_service import ClaudeService
+from backend.services.llm_provider import PROVIDERS, provider as llm
 from backend.utils.llm_json import parse_json_response
 from backend.utils.model_config import get_model_config
 from backend.utils.voices import build_voices_block, voices_for_chapter
 from backend.utils.story_state import build_state_block, normalise_story_state
 
 router = APIRouter(prefix="/api/llm", tags=["llm"])
-ollama_service = OllamaService()
-claude_service = ClaudeService()
+ollama_service = llm.ollama      # health check only; generation goes through `llm`
 
 class ContextElementBase(BaseModel):
     label: str
@@ -163,7 +161,7 @@ async def run_plotter(req: PlotterRequest):
         {"role": "user", "content": user_msg}
     ]
     
-    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await llm.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 @router.post("/antagonist")
@@ -181,7 +179,7 @@ async def run_antagonist(req: AntagonistRequest):
         {"role": "user", "content": user_msg}
     ]
     
-    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await llm.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 @router.post("/plotter-revision")
@@ -206,7 +204,7 @@ async def run_revision(req: RevisionRequest):
         {"role": "user", "content": user_msg}
     ]
     
-    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await llm.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 @router.post("/outliner")
@@ -234,7 +232,7 @@ async def run_outliner(req: OutlinerRequest):
         {"role": "user", "content": user_msg}
     ]
     
-    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await llm.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 @router.post("/chapter-plan")
@@ -268,7 +266,7 @@ async def run_chapter_plan(req: ChapterPlanRequest):
         {"role": "user", "content": user_msg}
     ]
 
-    raw = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    raw = await llm.generate(messages, stream=False, project_title=req.project_title)
     return parse_json_response(raw)
 
 DE_AI_RULES = """
@@ -318,7 +316,7 @@ async def run_chapter_draft(req: ChapterWriteRequest):
         {"role": "system", "content": sys_prompt},
         {"role": "user", "content": user_msg}
     ]
-    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await llm.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 @router.post("/chapter-enrich")
@@ -348,7 +346,7 @@ async def run_chapter_enrich(req: ChapterWriteRequest):
         {"role": "system", "content": sys_prompt},
         {"role": "user", "content": user_msg}
     ]
-    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await llm.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 @router.post("/chapter-critic")
@@ -385,7 +383,7 @@ async def run_chapter_critic(req: ChapterWriteRequest):
         {"role": "user", "content": user_msg}
     ]
     
-    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await llm.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 @router.post("/chapter-polish")
@@ -413,7 +411,7 @@ async def run_chapter_polish(req: ChapterWriteRequest):
         {"role": "user", "content": user_msg}
     ]
     
-    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await llm.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 @router.post("/chapter-summary")
@@ -434,7 +432,7 @@ async def run_chapter_summary(req: ChapterWriteRequest):
         {"role": "user", "content": user_msg}
     ]
     
-    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await llm.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 @router.post("/chapter-continuity")
@@ -492,7 +490,7 @@ async def run_chapter_continuity(req: ChapterContinuityRequest):
         {"role": "system", "content": sys_prompt},
         {"role": "user", "content": user_msg},
     ]
-    raw = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    raw = await llm.generate(messages, stream=False, project_title=req.project_title)
     data = parse_json_response(raw)
     return {
         "verdict": data.get("verdict", ""),
@@ -542,7 +540,7 @@ async def run_continuity(req: ContinuityRequest):
         {"role": "system", "content": sys_prompt},
         {"role": "user", "content": user_msg},
     ]
-    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await llm.generate(messages, stream=False, project_title=req.project_title)
     return parse_json_response(result)
 
 
@@ -562,7 +560,7 @@ async def run_summarise_premise(req: SummarisePremiseRequest):
         {"role": "system", "content": sys_prompt},
         {"role": "user", "content": user_msg},
     ]
-    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await llm.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 
@@ -590,7 +588,7 @@ async def run_derive_style_guide(req: DeriveStyleGuideRequest):
         {"role": "system", "content": sys_prompt},
         {"role": "user", "content": user_msg},
     ]
-    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await llm.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 
@@ -630,7 +628,7 @@ async def run_generate_voices(req: GenerateVoicesRequest):
         {"role": "system", "content": sys_prompt},
         {"role": "user", "content": user_msg},
     ]
-    raw = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    raw = await llm.generate(messages, stream=False, project_title=req.project_title)
     data = parse_json_response(raw)
     return {"voice_profiles": data.get("voice_profiles", [])}
 
@@ -653,7 +651,7 @@ async def run_chapter_summarise_enrich(req: SummariseEnrichRequest):
         {"role": "system", "content": sys_prompt},
         {"role": "user", "content": user_msg},
     ]
-    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await llm.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
 
 
@@ -681,7 +679,7 @@ async def run_parse_dump(req: ParseDumpRequest):
         {"role": "system", "content": sys_prompt},
         {"role": "user", "content": user_msg},
     ]
-    result = await claude_service.generate(messages, stream=False, project_title=req.project_title)
+    result = await llm.generate(messages, stream=False, project_title=req.project_title)
     # Strip markdown code fences if the model adds them
     return parse_json_response(result)
 
@@ -694,7 +692,35 @@ async def health_check():
     else:
         raise HTTPException(status_code=503, detail="Ollama is unreachable")
 
+class ProviderRequest(BaseModel):
+    provider: str
+
+def _current_config() -> dict:
+    # Generation model + context budget settings the frontend uses for the token bar,
+    # derived from whichever provider is active.
+    cfg = get_model_config(
+        provider=llm.current,
+        ollama_model=llm.ollama.model,
+        ollama_num_ctx=llm.ollama.num_ctx,
+    )
+    cfg["claude_configured"] = llm.claude_configured()
+    return cfg
+
 @router.get("/config")
 async def get_config():
-    # Generation model + context budget settings the frontend uses for the token bar.
-    return get_model_config()
+    return _current_config()
+
+@router.get("/provider")
+async def get_provider():
+    return _current_config()
+
+@router.post("/provider")
+async def set_provider(req: ProviderRequest):
+    if req.provider not in PROVIDERS:
+        raise HTTPException(status_code=400, detail=f"provider must be one of {list(PROVIDERS)}")
+    if req.provider == "claude" and not llm.claude_configured():
+        raise HTTPException(status_code=400, detail="ANTHROPIC_API_KEY is not set — add it to .env and restart")
+    if req.provider == "ollama" and not await llm.ollama.health_check():
+        raise HTTPException(status_code=503, detail="Ollama is not reachable — start it first")
+    llm.set(req.provider)
+    return _current_config()
