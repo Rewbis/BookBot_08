@@ -22,5 +22,6 @@ export const APP_SCRIPTS = [
   "frontend/js/research_panel.js",
   "frontend/js/style_panel.js",
   "frontend/js/voices_panel.js",
+  "frontend/js/export_panel.js",
   "frontend/js/app.js",
 ];

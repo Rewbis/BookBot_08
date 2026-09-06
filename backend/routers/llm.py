@@ -116,6 +116,24 @@ class DeriveStyleGuideRequest(BaseModel):
     style_sample: str
     project_title: str = "unknown"
 
+class BlurbRequest(BaseModel):
+    context_elements: List[ContextElementBase] = []
+    title: str
+    premise_summary: str = ""
+    chapter_summaries: List[dict] = []     # [{number, title, summary}]
+    project_title: str = "unknown"
+
+class VisualiserRequest(BaseModel):
+    target: str = "chapter"                # chapter | cover
+    title: str = ""
+    chapter_number: int = 0
+    chapter_title: str = ""
+    chapter_text: str = ""                 # frontend sends the opening ~1200 words
+    summary: str = ""
+    blurb: str = ""
+    style_notes: str = ""                  # e.g. genre/tone from role_constraints
+    project_title: str = "unknown"
+
 class GenerateVoicesRequest(BaseModel):
     characters: str
     premise: str = ""
@@ -590,6 +608,67 @@ async def run_derive_style_guide(req: DeriveStyleGuideRequest):
     ]
     result = await llm.generate(messages, stream=False, project_title=req.project_title)
     return {"content": result}
+
+
+@router.post("/blurb")
+async def run_blurb(req: BlurbRequest):
+    sys_prompt = (
+        "You are a back-cover copywriter for fiction. From the premise and chapter summaries, write "
+        "sales copy that makes a browsing reader buy the book without spoiling the ending.\n"
+        "Return ONLY a valid JSON object — no markdown, no code fences:\n"
+        "{\n"
+        '  "tagline": "one line, under 12 words",\n'
+        '  "blurb": "150-220 words, 2-4 short paragraphs, present tense, ends on the central question",\n'
+        '  "title_options": ["three alternative titles"]\n'
+        "}\n"
+        "Rules: no rhetorical questions in the first line; no 'in a world where'; name the protagonist "
+        "and the stakes; never reveal the last act."
+    )
+    user_msg = build_user_message(req.context_elements)
+    user_msg += f"## Working Title\n{req.title}\n\n"
+    if req.premise_summary:
+        user_msg += f"## Premise Summary\n{req.premise_summary}\n\n"
+    if req.chapter_summaries:
+        user_msg += "## Chapter Summaries\n"
+        for s in req.chapter_summaries:
+            user_msg += f"### Chapter {s.get('number')}: {s.get('title')}\n{s.get('summary')}\n\n"
+    messages = [{"role": "system", "content": sys_prompt}, {"role": "user", "content": user_msg}]
+    raw = await llm.generate(messages, stream=False, project_title=req.project_title)
+    data = parse_json_response(raw)
+    return {
+        "tagline": data.get("tagline", ""),
+        "blurb": data.get("blurb", ""),
+        "title_options": data.get("title_options") or [],
+    }
+
+
+@router.post("/visualiser")
+async def run_visualiser(req: VisualiserRequest):
+    if req.target == "cover":
+        sys_prompt = (
+            "You write prompts for an image-generation model. Produce ONE prompt for a book cover "
+            "illustration: a single iconic image that captures the book's central tension, composed "
+            "with clear negative space in the upper third for the title. Specify subject, setting, "
+            "era and technology level, lighting, palette, mood, camera/composition, and art style. "
+            "End with: 'No text, no lettering, no watermark.' One paragraph, 80-140 words, no preamble."
+        )
+        user_msg = f"## Title\n{req.title}\n\n## Blurb\n{req.blurb}\n\n## Summary\n{req.summary}\n"
+    else:
+        sys_prompt = (
+            "You write prompts for an image-generation model. Read the opening of the chapter and "
+            "choose the single most visual moment in it — a concrete scene, not a theme. Produce ONE "
+            "prompt for an illustration of that moment: who is in frame and what they are doing, the "
+            "setting, era and technology level, time of day and lighting, weather, palette, mood, "
+            "composition, and art style. Do not name the characters — describe them. End with: 'No "
+            "text, no lettering, no watermark.' One paragraph, 80-140 words, no preamble."
+        )
+        user_msg = (f"## Chapter {req.chapter_number}: {req.chapter_title}\n\n"
+                    f"## Summary\n{req.summary}\n\n## Opening\n{req.chapter_text}\n")
+    if req.style_notes:
+        user_msg = f"## Genre / tone\n{req.style_notes}\n\n" + user_msg
+    messages = [{"role": "system", "content": sys_prompt}, {"role": "user", "content": user_msg}]
+    result = await llm.generate(messages, stream=False, project_title=req.project_title)
+    return {"prompt": result.strip()}
 
 
 @router.post("/generate-voices")

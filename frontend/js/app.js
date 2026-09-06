@@ -9,6 +9,7 @@ window._applyLayoutMode = function() {
     if (window._isMobile()) {
         sections.forEach(el => el.style.removeProperty('display'));
         if (window.ChapterCPanel) window.ChapterCPanel.renderAllChapters();
+        if (window.ExportPanel) window.ExportPanel.render();
         if (window.ArchitecturePanel) window.ArchitecturePanel.init();
     } else {
         const active = document.querySelector('.tab-btn.active');
@@ -19,7 +20,10 @@ window._applyLayoutMode = function() {
 
 window._gotoTab = function(tabId) {
     if (window._isMobile()) {
-        // Mobile: all sections visible, just scroll to the right one
+        // Mobile: all sections visible, just scroll to the right one — but refresh the
+        // sections that derive from other phases' state so they aren't stale on arrival.
+        if (tabId === 'tab-c' && window.ChapterCPanel) window.ChapterCPanel.renderAllChapters();
+        if (tabId === 'tab-d' && window.ExportPanel) window.ExportPanel.render();
         const el = document.getElementById(tabId);
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         const sel = document.getElementById('mobile-tab-select');
@@ -35,6 +39,7 @@ window._gotoTab = function(tabId) {
         const sel = document.getElementById('mobile-tab-select');
         if (sel) sel.value = tabId;
         if (tabId === 'tab-c' && window.ChapterCPanel) window.ChapterCPanel.renderAllChapters();
+        if (tabId === 'tab-d' && window.ExportPanel) window.ExportPanel.render();
         if (tabId === 'tab-arch' && window.ArchitecturePanel) window.ArchitecturePanel.init();
     }
 };
@@ -85,6 +90,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.ResearchPanel.init();
     window.StylePanel.init();
     window.VoicesPanel.init();
+    window.ExportPanel.init();
 
     // 2. Bind top-level buttons
     // New/Load/Save use inline onclick in index.html (required for mobile) — do not also bind here.

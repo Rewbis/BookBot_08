@@ -24,6 +24,7 @@ BookBot_08/
 │   │   ├── project.py           # /api/project — save/load/list/new snapshots
 │   │   ├── llm.py               # /api/llm — every agent endpoint (see Agent Pipeline)
 │   │   ├── research.py          # /api/research — Tavily search/extract + Claude summarise
+│   │   ├── export.py            # /api/export — manuscript export (epub/md/txt) + download
 │   │   ├── tokens.py            # /api/tokens — token counting + session usage/cost
 │   │   └── architecture.py      # /api/architecture — serves docs/architecture_matrix.yaml read-only
 │   ├── models/
@@ -39,6 +40,7 @@ BookBot_08/
 │       ├── model_config.py      # GET /api/llm/config payload: model, context window, warn threshold, $/MTok
 │       ├── voices.py            # stage_for_chapter / voices_for_chapter / build_voices_block
 │       ├── story_state.py       # per-chapter story state: normalise, has_content, build_state_block
+│       ├── manuscript.py        # Phase D: assemble approved chapters → epub (ebooklib) / md / txt + companion
 │       ├── logger.py            # per-call JSON logs to /logs/
 │       ├── snapshot.py          # save/load/suggest_filename
 │       └── usage_tracker.py     # session token + USD accumulator (Claude vs local)
@@ -53,6 +55,7 @@ BookBot_08/
 │       ├── research_panel.js    # Tavily URL/search → raw + summary → Approve → Context; paste fallback
 │       ├── style_panel.js       # Writing Style: load/paste sample → derive style guide → Approve → Context
 │       ├── voices_panel.js      # Character Voices: per-character profiles staged by chapter range
+│       ├── export_panel.js      # Phase D: metadata, blurb, illustration/cover prompts, export + download
 │       ├── llm_panel.js         # Phase A loop: Plotter → Antagonist → Revision → Continuity → Summarise
 │       ├── chapter_panel.js     # Phase B: chapter cards, Chapter Plan, Skeleton, approve
 │       ├── chapter_c_panel.js   # Phase C: draft → enrich → critic → polish → summary; bulk generate
@@ -194,7 +197,23 @@ All Phase C endpoints share `ChapterWriteRequest`: `context_elements`, `prior_ch
 - `target_words_per_chapter` = target words ÷ target chapters.
 - `prior_chapter_summaries` includes only chapters with `approved == true` and a lower number.
 - **Bulk Generate All** runs every unapproved chapter in sequence and marks each approved automatically — there is no per-chapter human gate in bulk mode.
+- **Human editing:** the Final Draft box is the author's until the chapter is approved. **✎ Edit Draft** highlights it and swaps in **Save Edits / Cancel**; saving updates `full_text` and flags continuity stale. Re-run Critic and Continuity always work from `full_text` first. **✓ Approve Chapter** locks the text (Unapprove to change it) and counts towards the Phase C header's **→ Phase D: Export** button, which enables once anything is approved.
 - **Not built:** the `[EXPLICIT: …]` placeholder + local-model fill pass. The drafter prompt never emits that placeholder; `Chapter.has_explicit_content` and `explicit_review_notes` exist in the schema but nothing sets them.
+
+### Phase D — Export (as built)
+
+| Endpoint | Input | Output |
+|---|---|---|
+| `POST /api/llm/blurb` | `context_elements`, `title`, `premise_summary`, `chapter_summaries[]` | `{tagline, blurb, title_options[]}` — 150–220 words, no last-act spoilers |
+| `POST /api/llm/visualiser` | `target: chapter\|cover`, chapter opening (~1200 words) + summary, or title + blurb; `style_notes` | `{prompt}` — one 80–140 word image prompt, characters described not named, "no text" suffix |
+| `POST /api/export/manuscript` | `project` (full BookProject), `format: epub\|md\|txt`, `author`, `include_unapproved` | `{filename, url, companion_url, chapters_included, words, warnings[]}` |
+| `GET /api/export/download/{slug}/{filename}` | — | The file; slug/filename restricted to `[A-Za-z0-9_.-]`, served only from `projects/<slug>/export/` |
+
+`backend/utils/manuscript.py` does the work (pure Python, fully tested): chapters sorted by number; text = `full_text` → `polish_draft` → `enrich_draft` → `draft_text`; unapproved chapters skipped with a warning unless `include_unapproved`; empty chapters always skipped. EPUB via `ebooklib`: DC title/creator/description, one XHTML per chapter (HTML-escaped paragraphs split on blank lines), TOC, NCX + nav. A **companion `.txt`** (title, author, tagline, blurb, cover prompt, every chapter's illustration prompt, counts) is written beside every export. Output lives under `projects/<slug>/export/` — gitignored like everything else the author produces.
+
+Phase D tab: author / tagline / blurb (Generate Blurb, editable), cover prompt, chapter manifest with status + word counts + per-chapter illustration prompt (generate one or all, copy to clipboard, editable), include-unapproved toggle, Export EPUB / Markdown / Text → download links. `Snapshot.collectProject()` (shared with Save) supplies the project.
+
+**Not built:** KDP validation (needs `epubcheck`, a Java tool), embedding illustrations into the EPUB, DOCX, an illustrations-folder watcher.
 
 ---
 
@@ -204,6 +223,7 @@ All Phase C endpoints share `ChapterWriteRequest`: `context_elements`, `prior_ch
 - `creative_dump`, `role_constraints`, `premise`, `premise_summary`, `characters`, `world_notes`
 - `style_sample`, `style_guide` — see Writing Style
 - `voice_profiles: List[VoiceProfile]` — `{id, name, stages: [VoiceStage{label, from_chapter, to_chapter, voice}]}`; see Character Voices
+- `author`, `tagline`, `blurb`, `cover_prompt` — Phase D publishing metadata
 - `planted_clues: List[PlantedClue]`
 - `plotter_output`, `antagonist_output`, `plotter_revision_output`, `continuity_output` (JSON string) — persisted so a snapshot survives reload mid-loop
 - `genre`, `tone`, `audience` — legacy, kept so old snapshots load
@@ -216,6 +236,7 @@ All Phase C endpoints share `ChapterWriteRequest`: `context_elements`, `prior_ch
 - Phase B: `title`, `intention`, `scene_notes`, `skeleton`, `approved`, `status`
 - Phase C: `draft_text`, `enrich_draft`, `enrich_draft_summary`, `critic_output`, `polish_draft`, `full_text`, `summary`, `phase_c_status`
 - Continuity: `story_state{}`, `continuity_report` (JSON string), `continuity_verdict`, `state_stale`, `state_computed_at`
+- Phase D: `illustration_prompt`
 - Reserved / unused: `has_explicit_content`, `explicit_review_notes`
 
 Note: `Chapter.approved` is set by both Phase B (skeleton approved) and Phase C (prose approved / bulk generate). The two phases share one flag.
@@ -250,7 +271,9 @@ The matrix includes a `local_explicit` column and `has_explicit_content` / `expl
 cd E:\Coding\BookBot_08 && .venv\Scripts\python.exe -m pytest -q
 ```
 
-52 tests (as of 2026-09-06), no network, no API keys:
+64 tests (as of 2026-09-06), no network, no API keys:
+- `test_manuscript.py` — assembly order/fallbacks/warnings, markdown + text rendering, a real EPUB written and read back (metadata, chapter files, HTML escaping), companion file
+- `test_export_api.py` — `/api/export` md/epub round trip with download, content types, bad format, empty book, path traversal refused
 - `test_model_config.py` — `/api/llm/config` for both providers, env overrides
 - `test_llm_provider.py` — provider default/env/validation, routing to the active service, lazy construction
 - `test_story_state.py` — state normalisation (missing/wrong-typed keys, extras kept), `has_content`, prompt block
@@ -275,7 +298,9 @@ pnpm install && pnpm check
 - `context_panel.test.js` — token estimate, `compressedAlternative` (source_ref, label fallback, premise), `exportElementsForLLM` ordering
 - `app.test.js` — `formatContinuityReport`, layout-mode functions defined at parse time, `_applyProviderConfig`
 - `notify.test.js` — request classification, idle debounce (one chime per run, cancelled by a new call), fetch wrapper transparency, toggle persistence, hidden-tab title
-- (44 JS tests as of 2026-09-06)
+- `export_panel.test.js` — text fallbacks, approval flags, word/opening helpers, snapshot round trip, manifest rendering and export-button gating
+- `chapter_c_panel.test.js` also covers Edit Draft / Save / Cancel, approved-lock, and the → Phase D button
+- (56 JS tests as of 2026-09-06)
 
 Not covered on the JS side: anything that touches the DOM through `init()` or makes `fetch` calls.
 
@@ -308,8 +333,9 @@ Gaps: no local `[EXPLICIT]` fill; `approved` flag shared with Phase B.
 ### Local explicit-content pass ❌ not built
 Design: drafter emits `[EXPLICIT: …]`, `qwen3-14b-abliterated` via Ollama fills them, `has_explicit_content` flags the chapter, Critic reviews and writes `explicit_review_notes`. Needs: placeholder instruction in the drafter prompt, an `/api/llm/local-explicit` endpoint calling `ollama_service.generate()` + `strip_thinking()`, a step in `chapter_c_panel.generateChapter()` between draft and enrich, and Critic prompt awareness of the flag.
 
-### Phase D — Export / Marketing / Illustrations — planned
-Cover blurb, illustration prompts per chapter, EPUB via `ebooklib`, KDP validation. `ebooklib` is already in `requirements.txt`; nothing else exists.
+### Phase D — Export ✅ (core)
+Blurb + tagline generation, cover and per-chapter illustration prompts, EPUB / Markdown / Text export with companion file, download links, unapproved-chapter gating. See *Phase D — Export (as built)* above.
+Not built: KDP validation (`epubcheck`), embedding illustrations, DOCX, illustrations-folder watcher.
 
 ---
 
@@ -322,7 +348,8 @@ Cover blurb, illustration prompts per chapter, EPUB via `ebooklib`, KDP validati
 5. **Summarise Premise** → *Edit* → *Approve → Context*.
 6. **Save** → **Load** → the picker groups saves under the project name; pick one; confirm Phase A outputs and clues are restored.
 7. Phase B: **Generate Chapter Plan** on an empty chapter, then on one with a typed intention (intention must survive). **Generate Skeleton** → **Approve**.
-8. Phase C: **Generate Chapter** on chapter 1 → pills fill draft/enrich/critic/polish → summary appears → **Approve Chapter**. Chapter 2's draft should reference chapter 1's summary.
+8. Phase C: **Generate Chapter** on chapter 1 → pills fill draft/enrich/critic/polish/continuity → summary appears → **✎ Edit Draft**, change a line, **Save Edits** (continuity shows ⏳ stale) → **✓ Approve Chapter** (text locks; header button reads "→ Phase D: Export (1 / N approved)"). Chapter 2's draft should reference chapter 1's summary and story state.
+8b. Phase D: **Generate Blurb** → edit → **Generate Cover Prompt** → **Export EPUB** → download link appears; the companion `.txt` lists the blurb and prompts. Unapproved chapters are listed but greyed and skipped.
 9. On the phone: page loads as one long scroll, header dropdown jumps between phases, Load opens.
 
 ---

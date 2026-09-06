@@ -194,6 +194,7 @@ window.ChapterCPanel = {
             const card = this.renderChapterCard(ch);
             this.container.appendChild(card);
         });
+        this.updateExportButton();
     },
 
     PASSES: ['draft', 'enrich', 'critic', 'polish', 'continuity'],
@@ -280,23 +281,35 @@ window.ChapterCPanel = {
             const isApproved = ch.phase_c_status === 'approved';
             const hasDraft = !!latestDraft;
 
+            const isEditing = this.editingId === ch.id && !isApproved;
             genSection.innerHTML = `
-                <div class="button-row" style="margin-bottom: 10px;">
+                <div class="button-row" style="margin-bottom: 10px; flex-wrap: wrap;">
                     <button class="btn-primary"
                         onclick="ChapterCPanel.generateChapter('${ch.id}')"
                         ${this.isGenerating ? 'disabled' : ''}>
                         ${hasDraft ? 'Regenerate Chapter' : 'Generate Chapter'}
                     </button>
+                    ${isEditing
+                        ? `<button class="btn-success" onclick="ChapterCPanel.saveDraft('${ch.id}')">Save Edits</button>
+                           <button class="btn-secondary" onclick="ChapterCPanel.cancelEdit('${ch.id}')">Cancel</button>`
+                        : `<button class="btn-secondary"
+                            onclick="ChapterCPanel.editDraft('${ch.id}')"
+                            ${(!hasDraft || this.isGenerating || isApproved) ? 'disabled' : ''}
+                            title="${isApproved ? 'Unapprove to edit' : 'Edit the chapter text yourself'}">
+                            ✎ Edit Draft
+                          </button>`}
                     <button class="btn-secondary"
                         onclick="ChapterCPanel.rerunCritic('${ch.id}')"
-                        ${(!hasDraft || this.isGenerating) ? 'disabled' : ''}>
+                        ${(!hasDraft || this.isGenerating || isEditing) ? 'disabled' : ''}
+                        title="Critic + Polish run on the text as it stands, including your edits">
                         Re-run Critic
                     </button>
                     ${!isApproved ?
                         `<button class="btn-success"
                             onclick="ChapterCPanel.approveChapter('${ch.id}')"
-                            ${(!hasDraft || this.isGenerating) ? 'disabled' : ''}>
-                            Approve Chapter
+                            ${(!hasDraft || this.isGenerating || isEditing) ? 'disabled' : ''}
+                            title="Lock this chapter and include it in the export">
+                            ✓ Approve Chapter
                         </button>` :
                         `<button class="btn-secondary"
                             onclick="ChapterCPanel.unapproveChapter('${ch.id}')"
@@ -311,13 +324,20 @@ window.ChapterCPanel = {
             // Final draft textarea
             const draftLabel = document.createElement('label');
             draftLabel.style.cssText = 'color: #ccc; font-size: 0.9rem;';
-            draftLabel.innerText = 'Final Draft';
+            draftLabel.innerHTML = isApproved
+                ? 'Final Draft <span class="section-hint">— approved and locked; Unapprove to change it</span>'
+                : isEditing
+                    ? 'Final Draft <span class="section-hint" style="color: var(--accent-color);">— editing; Save Edits when done</span>'
+                    : 'Final Draft <span class="section-hint">— yours to edit until approved; Re-run Critic and Continuity work from your edited text</span>';
             body.appendChild(draftLabel);
 
             const draftArea = document.createElement('textarea');
             draftArea.rows = 20;
-            draftArea.className = isApproved ? 'streaming-output skeleton-approved' : 'streaming-output';
+            draftArea.className = 'streaming-output draft-area'
+                + (isApproved ? ' skeleton-approved' : '')
+                + (isEditing ? ' editing' : '');
             draftArea.readOnly = isApproved;
+            draftArea.id = `draft-area-${ch.id}`;
             draftArea.placeholder = 'Generated chapter text will appear here...';
             draftArea.value = latestDraft;
             draftArea.addEventListener('change', (e) => {
@@ -399,6 +419,53 @@ window.ChapterCPanel = {
             this.expandedIds.add(id);
         }
         this.renderAllChapters();
+    },
+
+    // ── Human editing of the final draft ──────────────────────────────────────
+    editingId: null,
+
+    editDraft(id) {
+        const ch = window.ChapterPanel.chapters.find(c => c.id === id);
+        if (!ch || this.isGenerating || this.isApprovedC(ch)) return;
+        this.editingId = id;
+        this.expandedIds.add(id);
+        this.renderAllChapters();
+        const ta = document.getElementById(`draft-area-${id}`);
+        if (ta) { ta.focus(); ta.setSelectionRange(0, 0); }
+    },
+
+    saveDraft(id) {
+        const ch = window.ChapterPanel.chapters.find(c => c.id === id);
+        const ta = document.getElementById(`draft-area-${id}`);
+        if (!ch) return;
+        if (ta && ta.value !== (ch.full_text || '')) {
+            ch.full_text = ta.value;
+            if (ch.continuity_verdict || this.hasState(ch)) ch.state_stale = true;
+        }
+        this.editingId = null;
+        this.renderAllChapters();
+    },
+
+    cancelEdit(id) {
+        this.editingId = null;
+        this.renderAllChapters();
+    },
+
+    isApprovedC(ch) { return ch.phase_c_status === 'approved'; },
+
+    // Phase C header: enable the "→ Phase D" button once anything is approved
+    updateExportButton() {
+        const btn = document.getElementById('btn-c-to-export');
+        if (!btn) return;
+        const chapters = window.ChapterPanel.chapters;
+        const approved = chapters.filter(c => c.phase_c_status === 'approved').length;
+        btn.disabled = approved === 0;
+        btn.textContent = approved === 0 ? '→ Phase D: Export'
+            : approved === chapters.length ? `→ Phase D: Export (all ${approved} approved)`
+            : `→ Phase D: Export (${approved} / ${chapters.length} approved)`;
+        btn.title = approved === 0 ? 'Approve at least one chapter to export'
+            : approved === chapters.length ? 'Every chapter approved — ready to export'
+            : 'Unapproved chapters are skipped unless you tick "include unapproved" in Phase D';
     },
 
     updateSummary(id, value) {

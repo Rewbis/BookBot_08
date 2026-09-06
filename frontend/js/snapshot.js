@@ -1,4 +1,31 @@
 window.Snapshot = {
+    // The whole project as the backend's BookProject — used by Save and by Phase D export.
+    collectProject(title) {
+        const t = title != null ? title : document.getElementById('project-title').value;
+        const dumpData   = window.DumpPanel   ? window.DumpPanel.exportForSnapshot()   : {};
+        const llmData    = window.LLMPanel    ? window.LLMPanel.exportForSnapshot()    : {};
+        const styleData  = window.StylePanel  ? window.StylePanel.exportForSnapshot()  : {};
+        const voicesData = window.VoicesPanel ? window.VoicesPanel.exportForSnapshot() : {};
+        const exportData = window.ExportPanel ? window.ExportPanel.exportForSnapshot() : {};
+        return {
+            id: window.currentProjectId || "",
+            title: t,
+            target_word_count: parseInt(document.getElementById('setup-words').value) || 50000,
+            target_chapter_count: parseInt(document.getElementById('setup-chapters').value) || 20,
+            phase: "A",
+            context_elements: window.ContextPanel.contextElements,
+            chapters: window.ChapterPanel.chapters || [],
+            model_name: window.currentModelName || "claude-sonnet-5",
+            created_at: window.currentProjectCreatedAt || new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            ...dumpData,
+            ...llmData,
+            ...styleData,
+            ...voicesData,
+            ...exportData
+        };
+    },
+
     async saveProject() {
         const title = document.getElementById('project-title').value;
 
@@ -15,26 +42,7 @@ window.Snapshot = {
         const finalName = prompt("Save project as:", filename);
         if (!finalName) return;
 
-        const dumpData = window.DumpPanel ? window.DumpPanel.exportForSnapshot() : {};
-        const llmData   = window.LLMPanel   ? window.LLMPanel.exportForSnapshot()   : {};
-        const styleData  = window.StylePanel  ? window.StylePanel.exportForSnapshot()  : {};
-        const voicesData = window.VoicesPanel ? window.VoicesPanel.exportForSnapshot() : {};
-        const projectData = {
-            id: window.currentProjectId || "",
-            title: title,
-            target_word_count: parseInt(document.getElementById('setup-words').value) || 50000,
-            target_chapter_count: parseInt(document.getElementById('setup-chapters').value) || 20,
-            phase: "A",
-            context_elements: window.ContextPanel.contextElements,
-            chapters: window.ChapterPanel.chapters || [],
-            model_name: window.currentModelName || "claude-sonnet-5",
-            created_at: window.currentProjectCreatedAt || new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            ...dumpData,
-            ...llmData,
-            ...styleData,
-            ...voicesData
-        };
+        const projectData = this.collectProject(title);
 
         try {
             const res = await fetch('/api/project/save', {
@@ -160,6 +168,7 @@ window.Snapshot = {
         if (window.LLMPanel)   window.LLMPanel.loadFromSnapshot(project);
         if (window.StylePanel)  window.StylePanel.restoreFromSnapshot(project);
         if (window.VoicesPanel) window.VoicesPanel.restoreFromSnapshot(project);
+        if (window.ExportPanel) window.ExportPanel.restoreFromSnapshot(project);
 
         window.ContextPanel.contextElements = project.context_elements || [];
         window.ContextPanel.renderContextPanel();

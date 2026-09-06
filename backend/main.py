@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 
-from backend.routers import project, llm, tokens, architecture, research
+from backend.routers import project, llm, tokens, architecture, research, export
 from backend.services.ollama_service import OllamaService
 
 load_dotenv()                          # BookBot_08/.env
@@ -45,6 +45,7 @@ app.include_router(llm.router)
 app.include_router(tokens.router)
 app.include_router(architecture.router)
 app.include_router(research.router)
+app.include_router(export.router)
 
 # Mount frontend files
 app.mount("/static", StaticFiles(directory="frontend"), name="static")

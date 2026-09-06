@@ -13,7 +13,7 @@ describe("frontend scripts load", () => {
 
   it("publishes the expected globals", () => {
     for (const name of ["Notify", "ContextPanel", "DumpPanel", "LLMPanel", "ChapterPanel", "ChapterCPanel",
-                        "ResearchPanel", "StylePanel", "VoicesPanel", "Snapshot"]) {
+                        "ResearchPanel", "StylePanel", "VoicesPanel", "ExportPanel", "Snapshot"]) {
       expect(window[name], name).toBeTypeOf("object");
     }
     expect(window._gotoTab).toBeTypeOf("function");

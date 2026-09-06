@@ -155,6 +155,21 @@ crud_matrix:
       model: "—"
       num_ctx: "—"
 
+    - id: blurb
+      label: "Blurb\n(Phase D)"
+      model: claude-sonnet-5
+      num_ctx: API
+
+    - id: visualiser
+      label: "Visualiser\n(Phase D)"
+      model: claude-sonnet-5
+      num_ctx: API
+
+    - id: human_phase_d
+      label: "Human\n(Phase D)"
+      model: "—"
+      num_ctx: "—"
+
   groups:
 
     - label: "BookProject — project-level fields"
@@ -263,6 +278,16 @@ crud_matrix:
             enricher:      "R"
             critic:        "R"
             polish:        "R"
+
+        - field: "author / tagline / blurb / cover_prompt"
+          desc: >
+            Phase D publishing metadata. Blurb + tagline generated from the premise summary
+            and chapter summaries; cover prompt from title + blurb. All human-edited. Written
+            into the EPUB metadata and the companion .txt beside every export.
+          cells:
+            blurb:         "C"
+            visualiser:    "C"
+            human_phase_d: "U"
 
         - field: "planted_clues[ ] — label / description"
           list_field: true
@@ -420,11 +445,14 @@ crud_matrix:
 
         - field: chapter.summary
           desc: >
-            100-150 word factual summary used as prior-chapter context
-            when drafting subsequent chapters.
+            200-300 word factual summary (events, what each character knows/wants/where they
+            are, condition, clues planted or paid off) used as prior-chapter context when
+            drafting subsequent chapters, and as blurb input in Phase D.
           cells:
             summariser_chapter: "C,U"
             drafter:            "R"
+            blurb:              "R"
+            visualiser:         "R"
 
         - field: chapter.full_text
           desc: >
@@ -457,6 +485,15 @@ crud_matrix:
           cells:
             continuity_chapter: "C,U"
             human_phase_c:      "R,U"
+
+        - field: chapter.illustration_prompt
+          desc: >
+            Image-generation prompt for the most visual moment near the chapter opening.
+            Produced from the opening ~1200 words + summary; copied out to Gemini/Midjourney;
+            listed in the export companion file.
+          cells:
+            visualiser:    "C,U"
+            human_phase_d: "U"
 
         - field: chapter.phase_c_status
           desc: "not_started | drafting | enriching | critiquing | polishing | done"
@@ -497,6 +534,8 @@ model_routing:
       label: "Phase C — Pass 3a\nCritic"
     - id: phase_c3b
       label: "Phase C — Pass 3b\nPolish"
+    - id: phase_d
+      label: "Phase D\nExport"
 
   rows:
     - agent: "Parse & Structure"
@@ -506,6 +545,7 @@ model_routing:
       phase_c2:  "—"
       phase_c3a: "—"
       phase_c3b: "—"
+      phase_d:   "—"
 
     - agent: Plotter
       phase_a:   claude-sonnet-5
@@ -514,6 +554,7 @@ model_routing:
       phase_c2:  "—"
       phase_c3a: "—"
       phase_c3b: "—"
+      phase_d:   "—"
 
     - agent: Antagonist
       phase_a:   claude-sonnet-5
@@ -522,6 +563,7 @@ model_routing:
       phase_c2:  "—"
       phase_c3a: "—"
       phase_c3b: "—"
+      phase_d:   "—"
 
     - agent: "Plotter Revision"
       phase_a:   claude-sonnet-5
@@ -530,6 +572,7 @@ model_routing:
       phase_c2:  "—"
       phase_c3a: "—"
       phase_c3b: "—"
+      phase_d:   "—"
 
     - agent: "Continuity Agent"
       phase_a:   claude-sonnet-5
@@ -538,6 +581,7 @@ model_routing:
       phase_c2:  "—"
       phase_c3a: "—"
       phase_c3b: "—"
+      phase_d:   "—"
 
     - agent: "Research (Tavily + summarise)"
       phase_a:   claude-sonnet-5
@@ -546,6 +590,7 @@ model_routing:
       phase_c2:  "—"
       phase_c3a: "—"
       phase_c3b: "—"
+      phase_d:   "—"
 
     - agent: "Style Guide (derive)"
       phase_a:   claude-sonnet-5
@@ -554,6 +599,7 @@ model_routing:
       phase_c2:  "—"
       phase_c3a: "—"
       phase_c3b: "—"
+      phase_d:   "—"
 
     - agent: "Character Voices (derive)"
       phase_a:   claude-sonnet-5
@@ -562,6 +608,7 @@ model_routing:
       phase_c2:  "—"
       phase_c3a: "—"
       phase_c3b: "—"
+      phase_d:   "—"
 
     - agent: "Summariser (premise)"
       phase_a:   claude-sonnet-5
@@ -570,6 +617,7 @@ model_routing:
       phase_c2:  "—"
       phase_c3a: "—"
       phase_c3b: "—"
+      phase_d:   "—"
 
     - agent: Outliner
       phase_a:   "—"
@@ -578,6 +626,7 @@ model_routing:
       phase_c2:  "—"
       phase_c3a: "—"
       phase_c3b: "—"
+      phase_d:   "—"
 
     - agent: "Chapter Plan"
       phase_a:   "—"
@@ -586,6 +635,7 @@ model_routing:
       phase_c2:  "—"
       phase_c3a: "—"
       phase_c3b: "—"
+      phase_d:   "—"
 
     - agent: Drafter
       phase_a:   "—"
@@ -594,6 +644,7 @@ model_routing:
       phase_c2:  "—"
       phase_c3a: "—"
       phase_c3b: "—"
+      phase_d:   "—"
 
     - agent: "Local Model (Explicit fill)"
       phase_a:   "—"
@@ -602,6 +653,7 @@ model_routing:
       phase_c2:  "—"
       phase_c3a: "—"
       phase_c3b: "—"
+      phase_d:   "—"
 
     - agent: Enricher
       phase_a:   "—"
@@ -610,6 +662,7 @@ model_routing:
       phase_c2:  claude-sonnet-5
       phase_c3a: "—"
       phase_c3b: "—"
+      phase_d:   "—"
 
     - agent: "Summariser (post-enrich)"
       phase_a:   "—"
@@ -618,6 +671,7 @@ model_routing:
       phase_c2:  claude-sonnet-5
       phase_c3a: "—"
       phase_c3b: "—"
+      phase_d:   "—"
 
     - agent: Critic
       phase_a:   "—"
@@ -626,6 +680,7 @@ model_routing:
       phase_c2:  "—"
       phase_c3a: claude-sonnet-5
       phase_c3b: "—"
+      phase_d:   "—"
 
     - agent: Polish
       phase_a:   "—"
@@ -634,6 +689,7 @@ model_routing:
       phase_c2:  "—"
       phase_c3a: "—"
       phase_c3b: claude-sonnet-5
+      phase_d:   "—"
 
     - agent: "Continuity (per chapter, after polish)"
       phase_a:   "—"
@@ -642,6 +698,7 @@ model_routing:
       phase_c2:  "—"
       phase_c3a: "—"
       phase_c3b: claude-sonnet-5
+      phase_d:   "—"
 
     - agent: "Summariser (post-polish)"
       phase_a:   "—"
@@ -650,3 +707,22 @@ model_routing:
       phase_c2:  "—"
       phase_c3a: "—"
       phase_c3b: claude-sonnet-5
+      phase_d:   "—"
+
+    - agent: "Blurb (tagline, back-cover copy)"
+      phase_a:   "—"
+      phase_b:   "—"
+      phase_c1:  "—"
+      phase_c2:  "—"
+      phase_c3a: "—"
+      phase_c3b: "—"
+      phase_d:   claude-sonnet-5
+
+    - agent: "Visualiser (cover + chapter illustration prompts)"
+      phase_a:   "—"
+      phase_b:   "—"
+      phase_c1:  "—"
+      phase_c2:  "—"
+      phase_c3a: "—"
+      phase_c3b: "—"
+      phase_d:   claude-sonnet-5

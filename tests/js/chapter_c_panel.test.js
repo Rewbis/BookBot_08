@@ -91,6 +91,56 @@ describe("progress pills", () => {
   });
 });
 
+describe("human draft editing", () => {
+  it("editDraft / saveDraft / cancelEdit manage editingId and flag state stale on change", () => {
+    const c = ch(1, { full_text: "original", continuity_verdict: "approve" });
+    window.ChapterPanel.chapters = [c];
+    CC().renderAllChapters = () => {};
+    CC().editDraft(c.id);
+    expect(CC().editingId).toBe(c.id);
+    expect(CC().expandedIds.has(c.id)).toBe(true);
+
+    document.body.innerHTML = `<textarea id="draft-area-${c.id}">edited text</textarea>`;
+    CC().saveDraft(c.id);
+    expect(c.full_text).toBe("edited text");
+    expect(c.state_stale).toBe(true);
+    expect(CC().editingId).toBeNull();
+
+    CC().editDraft(c.id);
+    CC().cancelEdit(c.id);
+    expect(CC().editingId).toBeNull();
+    expect(c.full_text).toBe("edited text");
+  });
+
+  it("refuses to edit an approved chapter or while generating", () => {
+    const c = ch(1, { full_text: "x", phase_c_status: "approved" });
+    window.ChapterPanel.chapters = [c];
+    CC().renderAllChapters = () => {};
+    CC().editDraft(c.id);
+    expect(CC().editingId).toBeNull();
+    c.phase_c_status = "polish";
+    CC().isGenerating = true;
+    CC().editDraft(c.id);
+    expect(CC().editingId).toBeNull();
+    CC().isGenerating = false;
+  });
+
+  it("updateExportButton reflects approval progress", () => {
+    document.body.innerHTML = `<button id="btn-c-to-export"></button>`;
+    const btn = document.getElementById("btn-c-to-export");
+    window.ChapterPanel.chapters = [ch(1), ch(2)];
+    CC().updateExportButton();
+    expect(btn.disabled).toBe(true);
+    window.ChapterPanel.chapters[0].phase_c_status = "approved";
+    CC().updateExportButton();
+    expect(btn.disabled).toBe(false);
+    expect(btn.textContent).toBe("→ Phase D: Export (1 / 2 approved)");
+    window.ChapterPanel.chapters[1].phase_c_status = "approved";
+    CC().updateExportButton();
+    expect(btn.textContent).toBe("→ Phase D: Export (all 2 approved)");
+  });
+});
+
 describe("story state helpers", () => {
   it("hasState is false for missing or empty state", () => {
     expect(CC().hasState(ch(1))).toBe(false);

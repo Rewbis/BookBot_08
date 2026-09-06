@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BookBot 08</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=13">
+    <link rel="stylesheet" href="/static/css/style.css?v=14">
 </head>
 
 <body>
@@ -22,6 +22,7 @@
                 <option value="tab-a">Phase A</option>
                 <option value="tab-b">Phase B</option>
                 <option value="tab-c">Phase C</option>
+                <option value="tab-d">Phase D</option>
                 <option value="tab-arch">Architecture</option>
             </select>
             <button id="btn-notify-toggle" class="btn-secondary notify-toggle" onclick="window.Notify.toggle(this)" title="Sound off — click to chime when the agents finish">🔕</button>
@@ -83,7 +84,7 @@
                 <button class="tab-btn active" data-tab="tab-a">Phase A: Concept</button>
                 <button class="tab-btn" data-tab="tab-b">Phase B: Outlines</button>
                 <button class="tab-btn" data-tab="tab-c">Phase C: Drafting</button>
-                <button class="tab-btn disabled" data-tab="tab-d" title="Coming in V2">Phase D: Export</button>
+                <button class="tab-btn" data-tab="tab-d">Phase D: Export</button>
                 <button class="tab-btn" data-tab="tab-arch">Architecture</button>
             </div>
 
@@ -345,6 +346,8 @@
                         <button id="btn-c-expand-collapse-all" class="btn-secondary">Expand All</button>
                         <button id="btn-c-bulk-generate" class="btn-primary">Bulk Generate All</button>
                         <span id="phase-c-status">0 / 0 chapters approved</span>
+                        <button id="btn-c-to-export" class="btn-success" onclick="window._gotoTab('tab-d')" disabled
+                            title="Approve at least one chapter to export">→ Phase D: Export</button>
                     </div>
                 </div>
                 <div id="chapter-c-cards-container">
@@ -352,7 +355,75 @@
                 </div>
             </div>
             <div class="tab-content" id="tab-d" style="display: none;">
-                <h2>Phase D: Export (Coming soon)</h2>
+                <div class="dump-section">
+                    <div class="dump-header">
+                        <div>
+                            <h3>Publishing Details</h3>
+                            <p class="section-hint">Title comes from the header. Generate a blurb from the premise summary and chapter summaries, then edit it — it goes into the EPUB metadata and the companion file.</p>
+                        </div>
+                        <div class="button-row" style="gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                            <button id="btn-export-blurb" class="btn-primary btn-sm">Generate Blurb</button>
+                            <span id="export-status" class="status-text"></span>
+                        </div>
+                    </div>
+                    <div class="metadata-row">
+                        <div style="flex:1;">
+                            <label>Author</label>
+                            <input type="text" id="export-author" placeholder="Name as it should appear on the cover" style="width:100%; box-sizing:border-box;">
+                        </div>
+                        <div style="flex:2;">
+                            <label>Tagline</label>
+                            <input type="text" id="export-tagline" placeholder="One line, under 12 words" style="width:100%; box-sizing:border-box;">
+                        </div>
+                    </div>
+                    <label>Back-cover blurb</label>
+                    <textarea id="export-blurb" class="streaming-output" rows="6" placeholder="150–220 words. Generate, then make it yours."></textarea>
+                    <div id="export-title-options" class="section-hint"></div>
+                </div>
+
+                <hr>
+
+                <div class="dump-section">
+                    <div class="dump-header">
+                        <div>
+                            <h3>Illustration Prompts</h3>
+                            <p class="section-hint">One image-generation prompt per chapter (a key scene near the opening) plus a cover prompt. Copy them into Gemini, Midjourney, etc. Drop the finished images into projects/&lt;book&gt;/illustrations/ — embedding them in the EPUB is a follow-up.</p>
+                        </div>
+                        <div class="button-row" style="gap:0.5rem; flex-wrap:wrap;">
+                            <button id="btn-export-cover" class="btn-secondary btn-sm">Generate Cover Prompt</button>
+                            <button id="btn-export-all-illos" class="btn-secondary btn-sm">Generate All Chapter Prompts</button>
+                        </div>
+                    </div>
+                    <label>Cover prompt</label>
+                    <textarea id="export-cover-prompt" class="streaming-output" rows="4" placeholder="Cover illustration prompt…"></textarea>
+                </div>
+
+                <hr>
+
+                <div class="dump-section">
+                    <div class="dump-header">
+                        <div>
+                            <h3>Manuscript</h3>
+                            <p class="section-hint" id="export-summary">0 / 0 approved</p>
+                        </div>
+                        <label class="section-hint" style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                            <input type="checkbox" id="export-include-unapproved"> include unapproved chapters
+                        </label>
+                    </div>
+                    <div class="arch-table-wrap">
+                        <table class="export-table">
+                            <thead><tr><th>#</th><th>Title</th><th>Status</th><th>Words</th><th>Illustration prompt</th></tr></thead>
+                            <tbody id="export-chapters"></tbody>
+                        </table>
+                    </div>
+                    <div class="button-row mt-2" style="gap:8px; flex-wrap:wrap;">
+                        <button class="btn-success" data-export-format="epub" disabled>Export EPUB</button>
+                        <button class="btn-secondary" data-export-format="md" disabled>Export Markdown</button>
+                        <button class="btn-secondary" data-export-format="txt" disabled>Export Text</button>
+                    </div>
+                    <div id="export-result" class="mt-1"></div>
+                    <p class="section-hint mt-1">Not yet built: KDP validation (needs epubcheck), embedding illustrations, DOCX.</p>
+                </div>
             </div>
             <div class="tab-content" id="tab-arch" style="display: none;">
                 <div id="architecture-container"></div>
@@ -383,18 +454,19 @@
     </div>
 
     <!-- Scripts -->
-    <script src="/static/js/notify.js?v=13"></script>
-    <script src="/static/js/context_panel.js?v=13"></script>
-    <script src="/static/js/dump_panel.js?v=13"></script>
-    <script src="/static/js/llm_panel.js?v=13"></script>
-    <script src="/static/js/chapter_panel.js?v=13"></script>
-    <script src="/static/js/snapshot.js?v=13"></script>
-    <script src="/static/js/chapter_c_panel.js?v=13"></script>
-    <script src="/static/js/architecture_panel.js?v=13"></script>
-    <script src="/static/js/research_panel.js?v=13"></script>
-    <script src="/static/js/style_panel.js?v=13"></script>
-    <script src="/static/js/voices_panel.js?v=13"></script>
-    <script src="/static/js/app.js?v=13"></script>
+    <script src="/static/js/notify.js?v=14"></script>
+    <script src="/static/js/context_panel.js?v=14"></script>
+    <script src="/static/js/dump_panel.js?v=14"></script>
+    <script src="/static/js/llm_panel.js?v=14"></script>
+    <script src="/static/js/chapter_panel.js?v=14"></script>
+    <script src="/static/js/snapshot.js?v=14"></script>
+    <script src="/static/js/chapter_c_panel.js?v=14"></script>
+    <script src="/static/js/architecture_panel.js?v=14"></script>
+    <script src="/static/js/research_panel.js?v=14"></script>
+    <script src="/static/js/style_panel.js?v=14"></script>
+    <script src="/static/js/voices_panel.js?v=14"></script>
+    <script src="/static/js/export_panel.js?v=14"></script>
+    <script src="/static/js/app.js?v=14"></script>
 </body>
 
 </html>

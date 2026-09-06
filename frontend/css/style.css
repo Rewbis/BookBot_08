@@ -719,6 +719,32 @@ hr { border: 0; border-top: 1px solid var(--border-color); margin: 20px 0; }
 }
 @keyframes pill-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 
+/* Human editing of the final draft */
+.draft-area.editing {
+    outline: 2px solid var(--accent-color);
+    background: #141a2e;
+}
+
+/* ── Phase D: Export ───────────────────────────────────────────── */
+.export-table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+.export-table th, .export-table td { border: 1px solid var(--border-color); padding: 6px 8px; text-align: left; vertical-align: top; }
+.export-table thead th { background: var(--panel-bg); font-size: 0.78rem; color: #bbb; }
+.export-table tr.export-skip td { opacity: 0.55; }
+.export-num { width: 2.5em; text-align: center !important; font-family: monospace; }
+.export-title { font-weight: 600; min-width: 10em; }
+.export-words { font-family: monospace; text-align: right !important; white-space: nowrap; }
+.export-illo { min-width: 20em; }
+.export-illo .illo-prompt { width: 100%; box-sizing: border-box; font-size: 0.8rem; margin-bottom: 4px; resize: vertical; }
+.export-done { color: var(--btn-success); font-weight: 600; margin-bottom: 6px; }
+.export-link {
+    display: inline-block; padding: 8px 14px; border-radius: 4px; text-decoration: none;
+    background: var(--btn-success); color: #fff; font-weight: bold;
+}
+.export-link.secondary { background: var(--btn-secondary); }
+.export-link:hover { filter: brightness(1.1); }
+.export-warnings { margin: 8px 0 0; padding-left: 18px; color: var(--accent-color); font-size: 0.82rem; }
+#export-status.err { color: var(--btn-danger); }
+
 /* Per-chapter continuity (Phase C card) */
 .continuity-subsection { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
 .cont-badge {
