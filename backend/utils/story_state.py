@@ -6,8 +6,8 @@ Shape (all keys always present after normalise_story_state):
   "chapter": 3,
   "timeline": "Dusk, day 4 of the investigation",
   "characters": {
-    "Keel": {"location": "...", "knows": ["..."], "wants": "...", "condition": "...",
-             "possessions": ["..."], "relationships": {"Damsel": "..."}}
+    "Mara": {"location": "...", "knows": ["..."], "wants": "...", "condition": "...",
+             "possessions": ["..."], "relationships": {"Tomas": "..."}}
   },
   "open_threads": ["..."],
   "clues": {"clue_1": {"status": "unplanted|planted|paid_off|blocked", "note": "..."}},

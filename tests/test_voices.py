@@ -4,7 +4,7 @@ from backend.utils.voices import build_voices_block, stage_for_chapter, voices_f
 def staged_profile():
     return {
         "id": "p1",
-        "name": "Donald",
+        "name": "Ada",
         "stages": [
             {"label": "child",   "from_chapter": 1,  "to_chapter": 3,  "voice": "Short sentences, wants approval."},
             {"label": "youth",   "from_chapter": 4,  "to_chapter": 8,  "voice": "Brash, tests limits."},
@@ -46,7 +46,7 @@ def test_voices_for_chapter_skips_empty_voice_and_defaults_name():
         {"id": "p3", "name": "Silent", "stages": [{"label": "all", "from_chapter": 1, "to_chapter": 0, "voice": "   "}]},
     ]
     out = voices_for_chapter(profiles, 10)
-    assert [v["name"] for v in out] == ["Donald", "Unnamed"]
+    assert [v["name"] for v in out] == ["Ada", "Unnamed"]
     assert out[0]["stage_label"] == "adult"
     assert out[0]["voice"].startswith("Salesman")
 
@@ -59,11 +59,11 @@ def test_tolerates_string_numbers_and_garbage():
 
 def test_build_voices_block_format():
     block = build_voices_block([
-        {"name": "Donald", "stage_label": "adult", "voice": "Superlatives."},
-        {"name": "Ivana", "stage_label": "all", "voice": "Clipped."},
+        {"name": "Ada", "stage_label": "adult", "voice": "Superlatives."},
+        {"name": "Ben", "stage_label": "all", "voice": "Clipped."},
     ])
     assert block.startswith("## Character Voices (this chapter)\n")
-    assert "### Donald (adult)\nSuperlatives." in block
-    assert "### Ivana\nClipped." in block          # 'all' stage gets no suffix
+    assert "### Ada (adult)\nSuperlatives." in block
+    assert "### Ben\nClipped." in block          # 'all' stage gets no suffix
     assert block.endswith("\n\n")
     assert build_voices_block([]) == ""

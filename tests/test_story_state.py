@@ -20,8 +20,8 @@ def test_normalise_fills_missing_and_fixes_wrong_types():
 
 
 def test_normalise_preserves_extra_keys():
-    s = normalise_story_state({"characters": {"Keel": {"location": "docks"}}, "weather": "rain"}, 1)
-    assert s["characters"]["Keel"]["location"] == "docks"
+    s = normalise_story_state({"characters": {"Mara": {"location": "docks"}}, "weather": "rain"}, 1)
+    assert s["characters"]["Mara"]["location"] == "docks"
     assert s["weather"] == "rain"
 
 
@@ -44,10 +44,10 @@ def test_has_content():
 
 def test_build_state_block_empty_and_nonempty():
     assert build_state_block(empty_state(1)) == ""
-    state = {"chapter": 2, "characters": {"Keel": {"knows": ["the seal is forged"]}}}
+    state = {"chapter": 2, "characters": {"Mara": {"knows": ["the seal is forged"]}}}
     block = build_state_block(state)
     assert block.startswith("## Story State Before This Chapter\n```json\n")
     assert block.endswith("```\n\n")
     inner = block.split("```json\n", 1)[1].rsplit("```", 1)[0]
-    assert json.loads(inner)["characters"]["Keel"]["knows"] == ["the seal is forged"]
+    assert json.loads(inner)["characters"]["Mara"]["knows"] == ["the seal is forged"]
     assert build_state_block(state, heading="Custom").startswith("## Custom\n")

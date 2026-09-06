@@ -66,9 +66,11 @@ BookBot_08/
 ├── package.json                 # pnpm scripts: lint, test:js, check — dev tooling only, no build step
 ├── eslint.config.js             # ESLint flat config; declares the window.* module globals
 ├── vitest.config.js             # jsdom environment, tests/js/**/*.test.js
-├── author_notes/                # human-only notes; the app never reads this folder (tracked in git)
+├── author_notes/                # human-only notes; the app never reads this folder (gitignored)
 ├── projects/                    # JSON snapshots (gitignored)
 ├── logs/                        # per-call LLM logs (gitignored)
+│                                # Rule: book content — anything written, fed in, or generated — never enters git.
+│                                # Test fixtures use invented names, not the author's characters or places.
 ├── .claude/launch.json          # dev-server config for the Claude Code browser pane
 ├── requirements.txt
 ├── .env / .env.example          # ANTHROPIC_API_KEY, TAVILY_API_KEY, OLLAMA_*

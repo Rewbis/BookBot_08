@@ -11,11 +11,11 @@ describe("formatContinuityReport", () => {
     const out = window.formatContinuityReport({
       verdict: "revise",
       summary: "Two problems.",
-      issues: ["Keel knows the seal is forged before anyone tells him.", "The key reappears."],
+      issues: ["Mara knows the seal is forged before anyone tells him.", "The key reappears."],
       clue_updates: [{ id: "clue_1", status: "blocked", notes: "payoff impossible now" }],
     });
     expect(out).toContain("VERDICT: ⚠️ REVISE");
-    expect(out).toContain("1. Keel knows");
+    expect(out).toContain("1. Mara knows");
     expect(out).toContain("2. The key");
     expect(out).toContain("[BLOCKED] clue_1: payoff impossible now");
   });

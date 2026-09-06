@@ -23,8 +23,8 @@ def make_project(title="My Book") -> BookProject:
 
 
 def test_suggest_filename_sanitises_title():
-    fn = suggest_filename(make_project("The Whispering City: Part 2!"))
-    assert fn.startswith("bookbot_the_whispering_city_part_2_")
+    fn = suggest_filename(make_project("The Harbour Ledger: Part 2!"))
+    assert fn.startswith("bookbot_the_harbour_ledger_part_2_")
     assert re.fullmatch(r"bookbot_[a-z0-9_]+_\d{8}_\d{4}\.json", fn)
 
 
@@ -46,7 +46,7 @@ def test_save_load_round_trip_preserves_phase_a_state(tmp_path):
     p.premise_summary = "short"
     p.style_sample = "The rain came sideways."
     p.style_guide = "Short sentences. Weather as mood."
-    p.voice_profiles = [VoiceProfile(id="v1", name="Keel", stages=[
+    p.voice_profiles = [VoiceProfile(id="v1", name="Mara", stages=[
         VoiceStage(label="youth", from_chapter=1, to_chapter=5, voice="Quick, cocky."),
         VoiceStage(label="adult", from_chapter=6, to_chapter=0, voice="Measured, tired."),
     ])]
@@ -76,7 +76,7 @@ def test_save_load_round_trip_preserves_phase_a_state(tmp_path):
     assert loaded.premise_summary == "short"
     assert loaded.style_sample == "The rain came sideways."
     assert loaded.style_guide == "Short sentences. Weather as mood."
-    assert loaded.voice_profiles[0].name == "Keel"
+    assert loaded.voice_profiles[0].name == "Mara"
     assert [s.label for s in loaded.voice_profiles[0].stages] == ["youth", "adult"]
     assert loaded.voice_profiles[0].stages[1].to_chapter == 0
     assert loaded.context_elements[0].label == "Premise"
@@ -93,7 +93,7 @@ def test_chapter_continuity_fields_round_trip(tmp_path):
     p.chapters = [Chapter(
         id="c1", number=1, title="Arrival", intention="", scene_notes="", skeleton="", summary="",
         full_text="prose", order=1, status="drafted",
-        story_state={"chapter": 1, "characters": {"Keel": {"location": "docks", "knows": ["the seal is forged"]}},
+        story_state={"chapter": 1, "characters": {"Mara": {"location": "docks", "knows": ["the seal is forged"]}},
                      "open_threads": ["who sent the letter?"]},
         continuity_report='{"verdict": "approve", "issues": []}',
         continuity_verdict="approve",
@@ -103,7 +103,7 @@ def test_chapter_continuity_fields_round_trip(tmp_path):
     path = tmp_path / "c.json"
     save_snapshot(p, str(path))
     ch = load_snapshot(str(path)).chapters[0]
-    assert ch.story_state["characters"]["Keel"]["knows"] == ["the seal is forged"]
+    assert ch.story_state["characters"]["Mara"]["knows"] == ["the seal is forged"]
     assert ch.continuity_verdict == "approve"
     assert ch.state_stale is True
     assert json.loads(ch.continuity_report)["verdict"] == "approve"

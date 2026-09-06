@@ -2,7 +2,15 @@
 .venv/
 __pycache__/
 *.pyc
-logs/
-projects/
 node_modules/
+
+# ── Book content stays local. Nothing the author writes, feeds in, or the agents
+#    produce is committed: snapshots, per-call prompt/output logs, private notes,
+#    style samples, illustrations. Code, docs, and tests only.
+projects/
+logs/
+author_notes/
+styles/
+illustrations/
+*.snapshot.json
 .idx/

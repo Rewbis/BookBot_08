@@ -31,7 +31,7 @@ describe("clueRefersToChapter", () => {
   });
 
   it("matches a distinctive title but never the 'Chapter N' placeholder", () => {
-    expect(CC().clueRefersToChapter("during The Voyage", ch(3, { title: "The Voyage" }))).toBe(true);
+    expect(CC().clueRefersToChapter("during Landfall", ch(3, { title: "Landfall" }))).toBe(true);
     expect(CC().clueRefersToChapter("chapter 4", ch(3, { title: "Chapter 3" }))).toBe(false);
   });
 });
@@ -131,7 +131,7 @@ describe("story state helpers", () => {
 describe("buildSharedContext", () => {
   it("assembles prior summaries, tail, clues, voices and prior state", () => {
     window.ContextPanel = { exportElementsForLLM: () => [{ label: "L", content: "C" }] };
-    window.VoicesPanel.profiles = [{ id: "v", name: "Keel", stages: [] }];
+    window.VoicesPanel.profiles = [{ id: "v", name: "Mara", stages: [] }];
     const words = Array.from({ length: 600 }, (_, i) => `w${i}`).join(" ");
     window.ChapterPanel.chapters = [
       ch(1, { approved: true, summary: "s1", full_text: words, story_state: { chapter: 1 } }),
@@ -142,7 +142,7 @@ describe("buildSharedContext", () => {
     expect(out.context_elements).toEqual([{ label: "L", content: "C" }]);
     expect(out.prior_chapter_summaries).toEqual([{ number: 1, title: "Chapter 1", summary: "s1" }]); // only approved
     expect(out.preceding_chapter_tail).toBe("short");                                             // chapter 2's text
-    expect(out.voice_profiles[0].name).toBe("Keel");
+    expect(out.voice_profiles[0].name).toBe("Mara");
     expect(out.prior_state.chapter).toBe(1);
     expect(out.clues_due).toEqual([]);
 
