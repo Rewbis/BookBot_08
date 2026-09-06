@@ -10,7 +10,7 @@ Two layers:
 - **Architecture reference** — what exists now and the conventions it follows. Kept accurate against the code; if they disagree, the code wins and this file gets fixed.
 - **Roadmap** — what is built, what is partly built, what is planned.
 
-The original scaffold prompts (Gemini "BLOCK 1–13") were removed on 2026-09-05. They described an Ollama-only, streaming, genre/tone/audience-form design that no longer exists. See git history before commit `4ed900e` if you need them.
+The original scaffold prompts (Gemini "BLOCK 1–13") were removed on 2026-09-05. They described an Ollama-only, streaming, genre/tone/audience-form design that no longer exists; they survive in git history in the versions of this file before that date. The founding brief lives privately in `author_notes/Initial_prompt` (untracked). Note: history was rewritten on 2026-09-06 to purge book content, so commit SHAs from before then are no longer valid.
 
 ---
 
