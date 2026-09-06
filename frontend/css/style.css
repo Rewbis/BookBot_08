@@ -885,6 +885,8 @@ thead .field-col { z-index: 3; }
 
     header { flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
     .header-left h1 { font-size: 1.1rem; }
+    .header-right { flex-wrap: wrap; row-gap: 6px; }
+    .provider-model-label { display: none; }   /* the select already says which; the name overflowed the viewport */
 
     /* Stack context panel above work panel; page scrolls, not inner panels */
     body { overflow-y: auto; }
@@ -944,6 +946,9 @@ thead .field-col { z-index: 3; }
 
     /* Chapter top-bar: wrap onto two lines */
     .chapter-card .top-bar { flex-wrap: wrap; gap: 6px; }
+    /* Phase C: title stays on one line; the pass pills drop to their own row beneath */
+    .chapter-c-card .top-bar .progress-pills { flex-basis: 100%; order: 10; }
+    .chapter-c-card .top-bar .word-count-badge { order: 11; }
 
     /* Modals: full width */
     .modal-content { width: 95%; padding: 14px; }

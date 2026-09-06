@@ -1,11 +1,11 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BookBot 08</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=12">
+    <link rel="stylesheet" href="/static/css/style.css?v=13">
 </head>
 
 <body>
@@ -24,11 +24,11 @@
                 <option value="tab-c">Phase C</option>
                 <option value="tab-arch">Architecture</option>
             </select>
-            <button id="btn-notify-toggle" class="btn-secondary notify-toggle" onclick="window.Notify.toggle(this)" title="Sound off — click to chime when the agents finish">🔕</button>
+            <button id="btn-notify-toggle" class="btn-secondary notify-toggle" onclick="window.Notify.toggle(this)" title="Sound off â€” click to chime when the agents finish">ðŸ”•</button>
             <div class="status-indicator provider-switch" title="Which model runs every agent">
                 <select id="provider-select" class="provider-select" onchange="window._setProvider(this.value);this.blur()">
-                    <option value="claude">☁ Claude</option>
-                    <option value="ollama">⚙ Local</option>
+                    <option value="claude">â˜ Claude</option>
+                    <option value="ollama">âš™ Local</option>
                 </select>
                 <span id="provider-model-label" class="provider-model-label"></span>
             </div>
@@ -41,8 +41,8 @@
     <main class="container">
         <!-- LEFT COLUMN -->
         <aside class="context-panel">
-            <h3>Context Window <span class="info-tooltip">ℹ️<span class="tooltip-text">Elements are sent to the LLM
-                        top-to-bottom. Place the most important context at the BOTTOM — the LLM gives more weight to
+            <h3>Context Window <span class="info-tooltip">â„¹ï¸<span class="tooltip-text">Elements are sent to the LLM
+                        top-to-bottom. Place the most important context at the BOTTOM â€” the LLM gives more weight to
                         recent (lower) items.</span></span></h3>
             <div class="token-tracker">
                 <div class="token-text">Context to send: <span id="token-total-count">0</span> / <span id="token-warn-limit">120,000</span> tok
@@ -53,19 +53,19 @@
                 <div id="context-budget" class="context-budget" style="display:none;"></div>
                 <div class="usage-grid">
                     <div class="usage-row usage-claude">
-                        <span class="usage-label">☁ Claude</span>
-                        <span class="usage-detail">↑ <span id="claude-in">0</span> ↓ <span id="claude-out">0</span></span>
+                        <span class="usage-label">â˜ Claude</span>
+                        <span class="usage-detail">â†‘ <span id="claude-in">0</span> â†“ <span id="claude-out">0</span></span>
                         <span class="usage-cost" id="claude-cost">$0.000000</span>
                     </div>
                     <div class="usage-row usage-local">
-                        <span class="usage-label">⚙ Local</span>
-                        <span class="usage-detail">↑ <span id="local-in">0</span> ↓ <span id="local-out">0</span></span>
+                        <span class="usage-label">âš™ Local</span>
+                        <span class="usage-detail">â†‘ <span id="local-in">0</span> â†“ <span id="local-out">0</span></span>
                         <span class="usage-cost">free</span>
                     </div>
                     <div class="usage-total-row">
                         <span>Session cost</span>
                         <span id="total-cost">$0.000000</span>
-                        <button id="btn-reset-usage" title="Reset session counters">↺</button>
+                        <button id="btn-reset-usage" title="Reset session counters">â†º</button>
                     </div>
                 </div>
             </div>
@@ -89,7 +89,7 @@
 
             <div class="tab-content" id="tab-a">
 
-                <!-- Project metadata (minimal — just what drives chapter generation) -->
+                <!-- Project metadata (minimal â€” just what drives chapter generation) -->
                 <div class="metadata-row">
                     <div>
                         <label>Target Words</label>
@@ -108,7 +108,7 @@
                     <div class="dump-header">
                         <div>
                             <h3>Creative Dump</h3>
-                            <p class="section-hint">Paste your raw ideas — characters, plot, world, any form. The structure agent will sort it out.</p>
+                            <p class="section-hint">Paste your raw ideas â€” characters, plot, world, any form. The structure agent will sort it out.</p>
                         </div>
                         <div class="button-row">
                             <button id="btn-parse-dump" class="btn-primary">Parse &amp; Structure</button>
@@ -127,9 +127,9 @@
                         <div class="slot-header">
                             <div>
                                 <span class="slot-label">Role &amp; Constraints</span>
-                                <span class="slot-hint">Goes in every system prompt — genre, conventions, tone, hard rules. Keep it concise.</span>
+                                <span class="slot-hint">Goes in every system prompt â€” genre, conventions, tone, hard rules. Keep it concise.</span>
                             </div>
-                            <button class="btn-success btn-sm" onclick="DumpPanel.approveSlot('role_constraints')">Approve → Context</button>
+                            <button class="btn-success btn-sm" onclick="DumpPanel.approveSlot('role_constraints')">Approve â†’ Context</button>
                         </div>
                         <textarea id="slot-role-text" rows="4" class="slot-textarea"></textarea>
                     </div>
@@ -138,9 +138,9 @@
                         <div class="slot-header">
                             <div>
                                 <span class="slot-label">Premise / Plot Bible</span>
-                                <span class="slot-hint">Full treatment — Plotter reads this in full. Drafter/Continuity get a summary only.</span>
+                                <span class="slot-hint">Full treatment â€” Plotter reads this in full. Drafter/Continuity get a summary only.</span>
                             </div>
-                            <button class="btn-success btn-sm" onclick="DumpPanel.approveSlot('premise')">Approve → Context</button>
+                            <button class="btn-success btn-sm" onclick="DumpPanel.approveSlot('premise')">Approve â†’ Context</button>
                         </div>
                         <textarea id="slot-premise-text" rows="10" class="slot-textarea"></textarea>
                     </div>
@@ -149,9 +149,9 @@
                         <div class="slot-header">
                             <div>
                                 <span class="slot-label">Characters</span>
-                                <span class="slot-hint">Per-character sketches — name, role, motivation, voice, relationships.</span>
+                                <span class="slot-hint">Per-character sketches â€” name, role, motivation, voice, relationships.</span>
                             </div>
-                            <button class="btn-success btn-sm" onclick="DumpPanel.approveSlot('characters')">Approve → Context</button>
+                            <button class="btn-success btn-sm" onclick="DumpPanel.approveSlot('characters')">Approve â†’ Context</button>
                         </div>
                         <textarea id="slot-characters-text" rows="6" class="slot-textarea"></textarea>
                     </div>
@@ -162,7 +162,7 @@
                                 <span class="slot-label">World Notes</span>
                                 <span class="slot-hint">Setting, canon, magic/tech systems relevant to the story.</span>
                             </div>
-                            <button class="btn-success btn-sm" onclick="DumpPanel.approveSlot('world_notes')">Approve → Context</button>
+                            <button class="btn-success btn-sm" onclick="DumpPanel.approveSlot('world_notes')">Approve â†’ Context</button>
                         </div>
                         <textarea id="slot-world-text" rows="5" class="slot-textarea"></textarea>
                     </div>
@@ -190,7 +190,7 @@
                         </div>
                         <div class="button-row" style="align-items:center; gap: 0.5rem;">
                             <span id="research-status-dot" class="dot red"></span>
-                            <span id="research-status-label" class="status-text">checking…</span>
+                            <span id="research-status-label" class="status-text">checkingâ€¦</span>
                         </div>
                     </div>
                     <div class="button-row" style="gap:0.5rem; flex-wrap:wrap;">
@@ -198,19 +198,19 @@
                             <option value="url">URL</option>
                             <option value="search">Search</option>
                         </select>
-                        <input type="text" id="research-input" class="research-input" placeholder="https://…">
+                        <input type="text" id="research-input" class="research-input" placeholder="https://â€¦">
                         <button id="btn-research-go" class="btn-primary btn-sm">Go</button>
                     </div>
                     <textarea id="research-raw-output" class="streaming-output" rows="8" readonly
-                        placeholder="Raw fetched content will appear here…" style="margin-top:0.5rem;"></textarea>
+                        placeholder="Raw fetched content will appear hereâ€¦" style="margin-top:0.5rem;"></textarea>
                     <div id="research-approve-row" class="button-row mt-1" style="display:none;">
-                        <button id="btn-research-approve-raw" class="btn-success btn-sm">Approve Raw → Context</button>
+                        <button id="btn-research-approve-raw" class="btn-success btn-sm">Approve Raw â†’ Context</button>
                     </div>
 
                     <!-- Paste fallback (shown when Tavily is blocked) -->
                     <div id="research-paste-fallback" style="display:none;" class="paste-fallback">
-                        <p class="paste-fallback-msg">⚠ Tavily couldn't fetch that URL — the site may be login-walled or blocking scrapers. Paste the page content below and click Summarise.</p>
-                        <textarea id="research-paste-input" rows="10" placeholder="Paste article / page content here…"></textarea>
+                        <p class="paste-fallback-msg">âš  Tavily couldn't fetch that URL â€” the site may be login-walled or blocking scrapers. Paste the page content below and click Summarise.</p>
+                        <textarea id="research-paste-input" rows="10" placeholder="Paste article / page content hereâ€¦"></textarea>
                         <div class="button-row mt-1">
                             <button id="btn-research-summarise-paste" class="btn-primary btn-sm">Summarise Pasted Content</button>
                         </div>
@@ -218,9 +218,9 @@
                     <div id="research-summary-row" style="display:none; margin-top:0.75rem;">
                         <p class="section-hint">Claude summary:</p>
                         <textarea id="research-summary-output" class="streaming-output" rows="5" readonly
-                            placeholder="Summary will appear here…"></textarea>
+                            placeholder="Summary will appear hereâ€¦"></textarea>
                         <div class="button-row mt-1">
-                            <button id="btn-research-approve-summary" class="btn-success btn-sm">Approve Summary → Context</button>
+                            <button id="btn-research-approve-summary" class="btn-success btn-sm">Approve Summary â†’ Context</button>
                         </div>
                     </div>
                 </div>
@@ -232,7 +232,7 @@
                     <div class="dump-header">
                         <div>
                             <h3>Writing Style</h3>
-                            <p class="section-hint">Load or paste a few thousand words of your own prose. Derive a compact style guide from it, approve the guide (always sent), and optionally approve the raw sample as a toggleable context element so Enrich and Polish imitate you, not the model. Put both near the bottom of the context panel — lower items carry more weight.</p>
+                            <p class="section-hint">Load or paste a few thousand words of your own prose. Derive a compact style guide from it, approve the guide (always sent), and optionally approve the raw sample as a toggleable context element so Enrich and Polish imitate you, not the model. Put both near the bottom of the context panel â€” lower items carry more weight.</p>
                         </div>
                         <div class="button-row" style="gap:0.5rem; flex-wrap:wrap; align-items:center;">
                             <label class="file-btn" for="style-file-input">Load .txt</label>
@@ -242,16 +242,16 @@
                         </div>
                     </div>
                     <textarea id="style-sample-text" class="streaming-output" rows="6"
-                        placeholder="Paste a sample of your writing here, or load a .txt file…"></textarea>
+                        placeholder="Paste a sample of your writing here, or load a .txt fileâ€¦"></textarea>
                     <div class="button-row mt-1" style="align-items:center; gap:0.75rem;">
-                        <button id="btn-approve-style-sample" class="btn-success btn-sm" disabled>Approve Sample → Context</button>
+                        <button id="btn-approve-style-sample" class="btn-success btn-sm" disabled>Approve Sample â†’ Context</button>
                         <span id="style-sample-tokens" class="section-hint"></span>
                     </div>
                     <div id="style-guide-row" style="display:none; margin-top:0.75rem;">
-                        <p class="section-hint">Derived style guide — edit freely before approving:</p>
+                        <p class="section-hint">Derived style guide â€” edit freely before approving:</p>
                         <textarea id="style-guide-text" class="streaming-output" rows="8"></textarea>
                         <div class="button-row mt-1">
-                            <button id="btn-approve-style-guide" class="btn-success btn-sm">Approve Guide → Context</button>
+                            <button id="btn-approve-style-guide" class="btn-success btn-sm">Approve Guide â†’ Context</button>
                         </div>
                     </div>
                 </div>
@@ -263,7 +263,7 @@
                     <div class="dump-header">
                         <div>
                             <h3>Character Voices</h3>
-                            <p class="section-hint">One voice profile per principal character, optionally split into life stages (child, youth, adult, elderly…) with chapter ranges. Phase C injects only the stage active for the chapter being written, so a character can age across the book. Generate from the Characters slot, then edit freely.</p>
+                            <p class="section-hint">One voice profile per principal character, optionally split into life stages (child, youth, adult, elderlyâ€¦) with chapter ranges. Phase C injects only the stage active for the chapter being written, so a character can age across the book. Generate from the Characters slot, then edit freely.</p>
                         </div>
                         <div class="button-row" style="gap:0.5rem; flex-wrap:wrap; align-items:center;">
                             <button id="btn-generate-voices" class="btn-primary btn-sm">Generate from Characters</button>
@@ -308,8 +308,8 @@
                     <textarea id="continuity-output" class="streaming-output" rows="10" readonly
                         placeholder="Continuity report will appear here..." style="display: none;"></textarea>
                     <div class="button-row mt-2" id="phase-a-verdict" style="display: none;">
-                        <button id="btn-approve-phase-a" class="btn-success">✓ Approve → Phase B</button>
-                        <button id="btn-pass-back-plotter" class="btn-danger">↩ Pass Back to Plotter</button>
+                        <button id="btn-approve-phase-a" class="btn-success">âœ“ Approve â†’ Phase B</button>
+                        <button id="btn-pass-back-plotter" class="btn-danger">â†© Pass Back to Plotter</button>
                     </div>
 
                     <!-- Premise Summariser (shown after approval) -->
@@ -322,7 +322,7 @@
                             placeholder="Compressed premise for Outliner/Drafter context..." style="display: none;"></textarea>
                         <div id="premise-summary-action-row" class="button-row mt-1" style="display: none;">
                             <button id="btn-edit-premise-summary" class="btn-secondary">Edit</button>
-                            <button id="btn-approve-premise-summary" class="btn-success">Approve → Context</button>
+                            <button id="btn-approve-premise-summary" class="btn-success">Approve â†’ Context</button>
                         </div>
                     </div>
                 </div>
@@ -383,18 +383,18 @@
     </div>
 
     <!-- Scripts -->
-    <script src="/static/js/notify.js?v=12"></script>
-    <script src="/static/js/context_panel.js?v=12"></script>
-    <script src="/static/js/dump_panel.js?v=12"></script>
-    <script src="/static/js/llm_panel.js?v=12"></script>
-    <script src="/static/js/chapter_panel.js?v=12"></script>
-    <script src="/static/js/snapshot.js?v=12"></script>
-    <script src="/static/js/chapter_c_panel.js?v=12"></script>
-    <script src="/static/js/architecture_panel.js?v=12"></script>
-    <script src="/static/js/research_panel.js?v=12"></script>
-    <script src="/static/js/style_panel.js?v=12"></script>
-    <script src="/static/js/voices_panel.js?v=12"></script>
-    <script src="/static/js/app.js?v=12"></script>
+    <script src="/static/js/notify.js?v=13"></script>
+    <script src="/static/js/context_panel.js?v=13"></script>
+    <script src="/static/js/dump_panel.js?v=13"></script>
+    <script src="/static/js/llm_panel.js?v=13"></script>
+    <script src="/static/js/chapter_panel.js?v=13"></script>
+    <script src="/static/js/snapshot.js?v=13"></script>
+    <script src="/static/js/chapter_c_panel.js?v=13"></script>
+    <script src="/static/js/architecture_panel.js?v=13"></script>
+    <script src="/static/js/research_panel.js?v=13"></script>
+    <script src="/static/js/style_panel.js?v=13"></script>
+    <script src="/static/js/voices_panel.js?v=13"></script>
+    <script src="/static/js/app.js?v=13"></script>
 </body>
 
 </html>
