@@ -195,6 +195,8 @@ window.ChapterCPanel = {
             this.container.appendChild(card);
         });
         this.updateExportButton();
+        // Freshly rendered textareas start at rows=N; fit them to their content (capped, then scroll).
+        if (window._resizeAllOutputs) window._resizeAllOutputs();
     },
 
     PASSES: ['draft', 'enrich', 'critic', 'polish', 'continuity'],

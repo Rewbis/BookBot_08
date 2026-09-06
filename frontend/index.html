@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BookBot 08</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=14">
+    <link rel="stylesheet" href="/static/css/style.css?v=15">
 </head>
 
 <body>
@@ -394,7 +394,9 @@
                             <button id="btn-export-all-illos" class="btn-secondary btn-sm">Generate All Chapter Prompts</button>
                         </div>
                     </div>
-                    <label>Cover prompt</label>
+                    <label style="display:flex; align-items:center; gap:8px;">Cover prompt
+                        <span class="illo-toggle"><input type="checkbox" id="export-cover-enabled" checked> illustrate the cover</span>
+                    </label>
                     <textarea id="export-cover-prompt" class="streaming-output" rows="4" placeholder="Cover illustration prompt…"></textarea>
                 </div>
 
@@ -422,7 +424,7 @@
                         <button class="btn-secondary" data-export-format="txt" disabled>Export Text</button>
                     </div>
                     <div id="export-result" class="mt-1"></div>
-                    <p class="section-hint mt-1">Not yet built: KDP validation (needs epubcheck), embedding illustrations, DOCX.</p>
+                    <p class="section-hint mt-1">Every export also writes a companion .txt (blurb + prompts) and a context-artefacts .md (every slot, plan, summary, state and prompt that shaped the book). EPUBs can be validated with epubcheck after export. Not yet built: embedding illustrations, DOCX.</p>
                 </div>
             </div>
             <div class="tab-content" id="tab-arch" style="display: none;">
@@ -454,19 +456,19 @@
     </div>
 
     <!-- Scripts -->
-    <script src="/static/js/notify.js?v=14"></script>
-    <script src="/static/js/context_panel.js?v=14"></script>
-    <script src="/static/js/dump_panel.js?v=14"></script>
-    <script src="/static/js/llm_panel.js?v=14"></script>
-    <script src="/static/js/chapter_panel.js?v=14"></script>
-    <script src="/static/js/snapshot.js?v=14"></script>
-    <script src="/static/js/chapter_c_panel.js?v=14"></script>
-    <script src="/static/js/architecture_panel.js?v=14"></script>
-    <script src="/static/js/research_panel.js?v=14"></script>
-    <script src="/static/js/style_panel.js?v=14"></script>
-    <script src="/static/js/voices_panel.js?v=14"></script>
-    <script src="/static/js/export_panel.js?v=14"></script>
-    <script src="/static/js/app.js?v=14"></script>
+    <script src="/static/js/notify.js?v=15"></script>
+    <script src="/static/js/context_panel.js?v=15"></script>
+    <script src="/static/js/dump_panel.js?v=15"></script>
+    <script src="/static/js/llm_panel.js?v=15"></script>
+    <script src="/static/js/chapter_panel.js?v=15"></script>
+    <script src="/static/js/snapshot.js?v=15"></script>
+    <script src="/static/js/chapter_c_panel.js?v=15"></script>
+    <script src="/static/js/architecture_panel.js?v=15"></script>
+    <script src="/static/js/research_panel.js?v=15"></script>
+    <script src="/static/js/style_panel.js?v=15"></script>
+    <script src="/static/js/voices_panel.js?v=15"></script>
+    <script src="/static/js/export_panel.js?v=15"></script>
+    <script src="/static/js/app.js?v=15"></script>
 </body>
 
 </html>

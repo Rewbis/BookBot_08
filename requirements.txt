@@ -7,5 +7,6 @@ tiktoken
 anthropic
 tavily-python
 ebooklib
+epubcheck        # EPUB validation (bundles the epubcheck jar; needs a Java runtime on PATH)
 pyyaml
 pytest

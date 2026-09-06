@@ -6,6 +6,7 @@ content never leaves the gitignored projects/ tree. Pure Python, no API keys, so
 is fully unit-tested.
 """
 import html
+import json
 import os
 import re
 from datetime import datetime
@@ -134,16 +135,107 @@ def to_epub(meta: dict, chapters: list[dict], path: str) -> None:
 
 def companion_text(project: BookProject, meta: dict, chapters: list[dict]) -> str:
     """Everything a publisher form or an image tool needs, in one text file next to the export."""
+    cover = ("(disabled)" if not project.cover_illustration_enabled
+             else project.cover_prompt or "(none)")
     out = [f"TITLE: {meta['title']}", f"AUTHOR: {meta['author']}", f"TAGLINE: {meta['tagline']}", "",
-           "BLURB:", meta["blurb"], "", "COVER PROMPT:", project.cover_prompt or "(none)", ""]
+           "BLURB:", meta["blurb"], "", "COVER PROMPT:", cover, ""]
     by_number = {c.number: c for c in project.chapters}
     out.append("ILLUSTRATION PROMPTS:")
     for c in chapters:
         ch = by_number.get(c["number"])
-        prompt = (ch.illustration_prompt if ch else "") or "(none)"
+        if ch is not None and not ch.illustration_enabled:
+            prompt = "(disabled)"
+        else:
+            prompt = (ch.illustration_prompt if ch else "") or "(none)"
         out += [f"  Chapter {c['number']}: {c['title']}", f"    {prompt}"]
     out += ["", f"CHAPTERS: {len(chapters)}   WORDS: {sum(c['words'] for c in chapters)}"]
     return "\n".join(out) + "\n"
+
+
+def _section(title: str, body: str) -> list[str]:
+    body = (body or "").strip()
+    return [f"## {title}", "", body if body else "_(empty)_", ""]
+
+
+def context_dump(project: BookProject) -> str:
+    """
+    Every artefact that shaped the book, in one Markdown file: the slots, style, voices,
+    clues, the whole Phase A loop, the context window as sent, and per-chapter plans,
+    summaries, story states and prompts. For the record, and for anyone curious how the
+    sausage was made.
+    """
+    out = [f"# {project.title or 'Untitled'} — context artefacts", "",
+           f"_Exported {datetime.now().strftime('%Y-%m-%d %H:%M')} · model {project.model_name} · "
+           f"target {project.target_word_count:,} words / {project.target_chapter_count} chapters_", ""]
+
+    out += ["# Phase A — inputs", ""]
+    out += _section("Creative dump", project.creative_dump)
+    out += _section("Role & constraints", project.role_constraints)
+    out += _section("Premise / plot bible", project.premise)
+    out += _section("Premise summary", project.premise_summary)
+    out += _section("Characters", project.characters)
+    out += _section("World notes", project.world_notes)
+    out += _section("Style guide", project.style_guide)
+    out += _section("Writing sample", project.style_sample)
+
+    out += ["## Character voices", ""]
+    if project.voice_profiles:
+        for vp in project.voice_profiles:
+            out += [f"### {vp.name or 'Unnamed'}", ""]
+            for s in vp.stages:
+                rng = f"ch {s.from_chapter}–{s.to_chapter if s.to_chapter else 'end'}"
+                out += [f"**{s.label}** ({rng})", "", (s.voice or "").strip() or "_(empty)_", ""]
+    else:
+        out += ["_(none)_", ""]
+
+    out += ["## Planted clues", ""]
+    if project.planted_clues:
+        for c in project.planted_clues:
+            out += [f"- **{c.label or '(unnamed)'}** [{c.status}] — {c.description}"
+                    + (f" · planted: {c.planted_in}" if c.planted_in else "")
+                    + (f" · pays off: {c.pays_off_in}" if c.pays_off_in else "")]
+        out.append("")
+    else:
+        out += ["_(none)_", ""]
+
+    out += ["# Phase A — plot loop", ""]
+    out += _section("Plotter output", project.plotter_output)
+    out += _section("Antagonist critique", project.antagonist_output)
+    out += _section("Plotter revision", project.plotter_revision_output)
+    out += _section("Continuity report (plan level)", project.continuity_output)
+
+    out += ["# Context window (as last saved)", ""]
+    if project.context_elements:
+        for el in sorted(project.context_elements, key=lambda e: e.order):
+            flag = "on" if el.enabled else "off"
+            comp = " · compressed" if el.compressed else ""
+            out += [f"## [{flag}] {el.label}  ·  {el.element_type} · {el.source} · {el.token_count} tok{comp}", "",
+                    (el.content or "").strip() or "_(empty)_", ""]
+    else:
+        out += ["_(none)_", ""]
+
+    out += ["# Chapters", ""]
+    for ch in sorted(project.chapters, key=lambda c: (c.number, c.order)):
+        out += [f"## Chapter {ch.number}: {ch.title}  ·  {'approved' if is_approved(ch) else ch.phase_c_status or ch.status}", ""]
+        out += _section("Intention", ch.intention)
+        out += _section("Scene notes", ch.scene_notes)
+        out += _section("Skeleton", ch.skeleton)
+        out += _section("Summary", ch.summary)
+        out += _section("Enrich-pass summary", ch.enrich_draft_summary)
+        out += _section("Critic output", ch.critic_output)
+        out += _section("Continuity report", ch.continuity_report)
+        if ch.story_state:
+            out += ["### Story state (end of chapter)", "", "```json",
+                    json.dumps(ch.story_state, indent=1, ensure_ascii=False), "```", ""]
+        illo = ("(disabled)" if not ch.illustration_enabled else ch.illustration_prompt)
+        out += _section("Illustration prompt", illo)
+
+    out += ["# Phase D", ""]
+    out += _section("Author", project.author)
+    out += _section("Tagline", project.tagline)
+    out += _section("Blurb", project.blurb)
+    out += _section("Cover prompt", "(disabled)" if not project.cover_illustration_enabled else project.cover_prompt)
+    return "\n".join(out).rstrip() + "\n"
 
 
 def export_manuscript(project: BookProject, fmt: str, author: str, include_unapproved: bool,
@@ -175,10 +267,15 @@ def export_manuscript(project: BookProject, fmt: str, author: str, include_unapp
     with open(os.path.join(out_dir, companion), "w", encoding="utf-8") as f:
         f.write(companion_text(project, meta, chapters))
 
+    context_file = f"{slug}_{stamp}_context.md"
+    with open(os.path.join(out_dir, context_file), "w", encoding="utf-8") as f:
+        f.write(context_dump(project))
+
     return {
         "slug": slug,
         "filename": filename,
         "companion": companion,
+        "context_file": context_file,
         "path": path,
         "format": fmt,
         "chapters_included": len(chapters),

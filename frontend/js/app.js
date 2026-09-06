@@ -167,9 +167,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // 3d. Auto-resize all .streaming-output textareas
+    // Grow a textarea to fit its content up to a cap (CSS max-height also applies);
+    // beyond the cap the box keeps its size and scrolls (overflow-y: auto).
     window.autoResize = function(el) {
+        const cap = Math.round(window.innerHeight * 0.7);
         el.style.height = 'auto';
-        el.style.height = el.scrollHeight + 'px';
+        el.style.height = Math.min(el.scrollHeight + 2, cap) + 'px';
     };
     function resizeAllOutputs() {
         document.querySelectorAll('.streaming-output').forEach(window.autoResize);

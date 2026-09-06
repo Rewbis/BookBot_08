@@ -55,6 +55,7 @@ class Chapter(BaseModel):
     state_computed_at: str = ""
     # Phase D: image-generation prompt for a key scene near the chapter opening
     illustration_prompt: str = ""
+    illustration_enabled: bool = True     # untick to leave this chapter un-illustrated
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -112,6 +113,7 @@ class BookProject(BaseModel):
     tagline: str = ""
     blurb: str = ""
     cover_prompt: str = ""
+    cover_illustration_enabled: bool = True
     # Phase A loop outputs — persisted so snapshots survive a reload mid-loop
     plotter_output: str = ""
     antagonist_output: str = ""

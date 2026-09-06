@@ -40,7 +40,8 @@ BookBot_08/
 │       ├── model_config.py      # GET /api/llm/config payload: model, context window, warn threshold, $/MTok
 │       ├── voices.py            # stage_for_chapter / voices_for_chapter / build_voices_block
 │       ├── story_state.py       # per-chapter story state: normalise, has_content, build_state_block
-│       ├── manuscript.py        # Phase D: assemble approved chapters → epub (ebooklib) / md / txt + companion
+│       ├── manuscript.py        # Phase D: assemble approved chapters → epub (ebooklib) / md / txt + companion + context dump
+│       ├── epub_validate.py     # epubcheck wrapper (needs Java); reports unavailability instead of raising
 │       ├── logger.py            # per-call JSON logs to /logs/
 │       ├── snapshot.py          # save/load/suggest_filename
 │       └── usage_tracker.py     # session token + USD accumulator (Claude vs local)
@@ -76,7 +77,8 @@ BookBot_08/
 │                                # Test fixtures use invented names, not the author's characters or places.
 ├── .claude/launch.json          # dev-server config for the Claude Code browser pane
 ├── requirements.txt
-├── .env / .env.example          # ANTHROPIC_API_KEY, TAVILY_API_KEY, OLLAMA_*
+├── .env / .env.example          # ANTHROPIC_API_KEY, TAVILY_API_KEY, OLLAMA_*, LLM_PROVIDER, context budget
+├── .bookbot_settings.json       # runtime settings that survive restart (active provider); gitignored
 └── start.bat
 ```
 
@@ -85,7 +87,7 @@ BookBot_08/
 - All LLM state is plain Python dicts / JSON. No LangChain, no framework.
 - Every LLM call logs full input + output to `/logs/`.
 - Frontend is vanilla HTML/CSS/JS, no build step.
-- **One provider switch for every agent.** `backend/services/llm_provider.py` routes `provider.generate()` to either **Claude Sonnet 5** (`claude-sonnet-5` via `AsyncAnthropic`, `max_tokens=16000`) or the **local Ollama model** (`OLLAMA_MODEL`, `num_ctx` from `OLLAMA_NUM_CTX`). Startup default from `LLM_PROVIDER`; the header **☁ Claude / ⚙ Local** toggle changes it at runtime via `POST /api/llm/provider` (refuses Claude without a key, refuses Local if Ollama is down). The context budget follows the active model — 1M window / 120k warn / $ per call for Claude; 16k window / 12k warn / free for local.
+- **One provider switch for every agent.** `backend/services/llm_provider.py` routes `provider.generate()` to either **Claude Sonnet 5** (`claude-sonnet-5` via `AsyncAnthropic`, `max_tokens=16000`) or the **local Ollama model** (`OLLAMA_MODEL`, `num_ctx` from `OLLAMA_NUM_CTX`). The header **☁ Claude / ⚙ Local** toggle changes it at runtime via `POST /api/llm/provider` (refuses Claude without a key, refuses Local if Ollama is down) and the choice is written to `.bookbot_settings.json`, so it survives a server restart and a browser reload alike. Startup precedence: settings file → `LLM_PROVIDER` env → `claude`. The context budget follows the active model — 1M window / 120k warn / $ per call for Claude; 16k window / 12k warn / free for local.
   - Sonnet 5 returns `ThinkingBlock` before `TextBlock`. Always `next(b.text for b in response.content if b.type == "text")`, never `content[0].text`.
   - The local path strips `<think>…</think>` reasoning via `strip_thinking()`; JSON endpoints tolerate code fences either way.
 - The planned `[EXPLICIT: …]` fill pass (local model for specific passages inside a Claude-written chapter) is still not built — the toggle is all-or-nothing per call.
@@ -208,12 +210,20 @@ All Phase C endpoints share `ChapterWriteRequest`: `context_elements`, `prior_ch
 | `POST /api/llm/visualiser` | `target: chapter\|cover`, chapter opening (~1200 words) + summary, or title + blurb; `style_notes` | `{prompt}` — one 80–140 word image prompt, characters described not named, "no text" suffix |
 | `POST /api/export/manuscript` | `project` (full BookProject), `format: epub\|md\|txt`, `author`, `include_unapproved` | `{filename, url, companion_url, chapters_included, words, warnings[]}` |
 | `GET /api/export/download/{slug}/{filename}` | — | The file; slug/filename restricted to `[A-Za-z0-9_.-]`, served only from `projects/<slug>/export/` |
+| `POST /api/export/validate` | `slug`, `filename` (.epub) | epubcheck result: `{available, valid, version, epub_version, fatal, errors, warnings, messages[]}` or `{available: false, reason}` |
 
-`backend/utils/manuscript.py` does the work (pure Python, fully tested): chapters sorted by number; text = `full_text` → `polish_draft` → `enrich_draft` → `draft_text`; unapproved chapters skipped with a warning unless `include_unapproved`; empty chapters always skipped. EPUB via `ebooklib`: DC title/creator/description, one XHTML per chapter (HTML-escaped paragraphs split on blank lines), TOC, NCX + nav. A **companion `.txt`** (title, author, tagline, blurb, cover prompt, every chapter's illustration prompt, counts) is written beside every export. Output lives under `projects/<slug>/export/` — gitignored like everything else the author produces.
+`backend/utils/manuscript.py` does the work (pure Python, fully tested): chapters sorted by number; text = `full_text` → `polish_draft` → `enrich_draft` → `draft_text`; unapproved chapters skipped with a warning unless `include_unapproved`; empty chapters always skipped. EPUB via `ebooklib`: DC title/creator/description, one XHTML per chapter (HTML-escaped paragraphs split on blank lines), TOC, NCX + nav — **passes epubcheck 5.x with zero errors** (tested). Three files are written per export under `projects/<slug>/export/` (gitignored):
+- the manuscript (`.epub` / `.md` / `.txt`)
+- a **companion `.txt`** — title, author, tagline, blurb, cover prompt, every chapter's illustration prompt (or `(disabled)`), counts: what a publisher form or an image tool needs
+- a **context-artefacts `.md`** — every input and intermediate that shaped the book: creative dump, all slots, premise summary, style guide + sample, voice profiles, planted clues, the whole Phase A loop (plotter / antagonist / revision / continuity), the context window as last saved (with on/off and compressed flags), and per chapter the intention, scene notes, skeleton, summaries, critic output, continuity report, story state JSON and illustration prompt
 
-Phase D tab: author / tagline / blurb (Generate Blurb, editable), cover prompt, chapter manifest with status + word counts + per-chapter illustration prompt (generate one or all, copy to clipboard, editable), include-unapproved toggle, Export EPUB / Markdown / Text → download links. `Snapshot.collectProject()` (shared with Save) supplies the project.
+**Illustration toggles:** each chapter has an *illustrate* checkbox (`Chapter.illustration_enabled`, default on) and the cover has one (`BookProject.cover_illustration_enabled`). Disabled items show `(disabled)` in the companion and context files, are skipped by *Generate All Chapter Prompts*, and the cover controls grey out.
 
-**Not built:** KDP validation (needs `epubcheck`, a Java tool), embedding illustrations into the EPUB, DOCX, an illustrations-folder watcher.
+**Validation:** after an EPUB export a **Validate with epubcheck** button runs the real epubcheck (Java) on the file and lists every message with level, id, location and text. Needs the `epubcheck` pip package (in `requirements.txt`) and a Java 11+ runtime on PATH; without Java the panel says so rather than failing.
+
+Phase D tab: author / tagline / blurb (Generate Blurb, editable), cover prompt + toggle, chapter manifest with status, word counts, per-chapter toggle and illustration prompt (generate one or all, copy to clipboard, editable), include-unapproved toggle, Export EPUB / Markdown / Text → three download links + Validate. `Snapshot.collectProject()` (shared with Save) supplies the project.
+
+**Not built:** embedding illustrations into the EPUB, DOCX, an illustrations-folder watcher.
 
 ---
 
@@ -260,7 +270,7 @@ The matrix includes a `local_explicit` column and `has_explicit_content` / `expl
 - **Notification chime** (header 🔔/🔕, `notify.js`, preference in `localStorage`): `Notify.init()` runs first and wraps `window.fetch`, counting in-flight POSTs to `/api/llm/*` and `/api/research/*` (not `/provider`, not GETs, not token counts). When the count returns to zero and stays there for 1.5 s the run is over → one two-tone Web Audio chime (no asset files), and the tab title gets a 🔔 prefix while the page is hidden. Multi-call runs (a chapter's ~7 passes, or a whole bulk run) chime once at the end. Enabling plays the chime, which is also the user gesture browsers need before audio will play.
 - **Provider toggle** (header `#provider-select`, inline `onchange` → `window._setProvider`): `POST /api/llm/provider {provider}` returns the same payload as `GET /api/llm/config` (`provider`, `model_name`, `context_window`, `context_warn_tokens`, `input/output_cost_per_mtok`, `claude_configured`); `_applyProviderConfig` updates `currentModelName` (saved into the snapshot's `model_name`), the budget, the select, and the model label. On failure the select snaps back to the server's actual provider.
 - **Context budget** (`context_panel.js`): the token bar is scaled to `context_warn_tokens` from `GET /api/llm/config` (Claude: default 120,000, env `CONTEXT_WARN_TOKENS`, window 1,000,000; local: 75% of `OLLAMA_NUM_CTX`) and shows an estimated input $/call, or "local — free". At 80% of the threshold a *Context budget* panel lists compressible elements with the tokens each would save; ticking one swaps the element's `content` for its compressed alternative and keeps the original in `content_full` (`compressed: true`, lossless). Alternatives: `chapter_skeleton` → that chapter's `summary`/`enrich_draft_summary` (found via `source_ref` = chapter id, or the `Ch N Skeleton` label for older snapshots); `premise` → `premise_summary`. The threshold is an absolute count on purpose — long-context studies show quality falls gradually from the first tokens with no cliff at the limit, and stale/duplicate material degrades output more than length does.
-- **Textareas:** `.streaming-output` auto-grows to content (`autoResize`), is `resize: vertical`, and re-sizes after `llm:complete` and after snapshot load.
+- **Textareas:** `.streaming-output` auto-grows to content (`autoResize`) **up to 70% of the viewport height** (60% on phones), then keeps that height and scrolls (`overflow-y: auto`) — nothing is ever clipped silently. `resize: vertical` for manual adjustment. Re-sized after `llm:complete`, after snapshot load, and after every Phase B / C / D render.
 - **Tooltips** are `position: fixed`, positioned in JS from `getBoundingClientRect()`, so they escape the context panel's `overflow-y: auto`.
 
 ---
@@ -271,9 +281,11 @@ The matrix includes a `local_explicit` column and `has_explicit_content` / `expl
 cd E:\Coding\BookBot_08 && .venv\Scripts\python.exe -m pytest -q
 ```
 
-64 tests (as of 2026-09-06), no network, no API keys:
-- `test_manuscript.py` — assembly order/fallbacks/warnings, markdown + text rendering, a real EPUB written and read back (metadata, chapter files, HTML escaping), companion file
-- `test_export_api.py` — `/api/export` md/epub round trip with download, content types, bad format, empty book, path traversal refused
+73 tests (as of 2026-09-06), no network, no API keys:
+- `test_manuscript.py` — assembly order/fallbacks/warnings, markdown + text rendering, a real EPUB written and read back (metadata, chapter files, HTML escaping), companion file with illustration toggles, context-artefacts dump
+- `test_export_api.py` — `/api/export` md/epub round trip with download, content types, bad format, empty book, path traversal refused, validate endpoint guards
+- `test_epub_validate.py` — our EPUB passes a real epubcheck run (skipped if Java is absent); missing Java reported, not raised
+- `test_llm_provider.py` also covers persistence across "restart" and a corrupt settings file
 - `test_model_config.py` — `/api/llm/config` for both providers, env overrides
 - `test_llm_provider.py` — provider default/env/validation, routing to the active service, lazy construction
 - `test_story_state.py` — state normalisation (missing/wrong-typed keys, extras kept), `has_content`, prompt block
@@ -300,7 +312,7 @@ pnpm install && pnpm check
 - `notify.test.js` — request classification, idle debounce (one chime per run, cancelled by a new call), fetch wrapper transparency, toggle persistence, hidden-tab title
 - `export_panel.test.js` — text fallbacks, approval flags, word/opening helpers, snapshot round trip, manifest rendering and export-button gating
 - `chapter_c_panel.test.js` also covers Edit Draft / Save / Cancel, approved-lock, and the → Phase D button
-- (56 JS tests as of 2026-09-06)
+- (58 JS tests as of 2026-09-06; export panel also covers illustration and cover toggles)
 
 Not covered on the JS side: anything that touches the DOM through `init()` or makes `fetch` calls.
 
@@ -333,9 +345,9 @@ Gaps: no local `[EXPLICIT]` fill; `approved` flag shared with Phase B.
 ### Local explicit-content pass ❌ not built
 Design: drafter emits `[EXPLICIT: …]`, `qwen3-14b-abliterated` via Ollama fills them, `has_explicit_content` flags the chapter, Critic reviews and writes `explicit_review_notes`. Needs: placeholder instruction in the drafter prompt, an `/api/llm/local-explicit` endpoint calling `ollama_service.generate()` + `strip_thinking()`, a step in `chapter_c_panel.generateChapter()` between draft and enrich, and Critic prompt awareness of the flag.
 
-### Phase D — Export ✅ (core)
-Blurb + tagline generation, cover and per-chapter illustration prompts, EPUB / Markdown / Text export with companion file, download links, unapproved-chapter gating. See *Phase D — Export (as built)* above.
-Not built: KDP validation (`epubcheck`), embedding illustrations, DOCX, illustrations-folder watcher.
+### Phase D — Export ✅
+Blurb + tagline generation, cover and per-chapter illustration prompts with toggles, EPUB / Markdown / Text export with companion and context-artefacts files, download links, epubcheck validation, unapproved-chapter gating. See *Phase D — Export (as built)* above.
+Not built: embedding illustrations, DOCX, illustrations-folder watcher.
 
 ---
 

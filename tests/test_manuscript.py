@@ -113,6 +113,51 @@ def test_export_md_and_txt_and_errors(tmp_path):
         export_manuscript(project([chap(1, full_text="x")]), "md", "", False, str(tmp_path))   # nothing approved
 
 
+def test_companion_respects_illustration_toggles():
+    p = project([
+        chap(1, full_text="t", approved=True, illustration_prompt="A quay.", illustration_enabled=False),
+        chap(2, full_text="t", approved=True, illustration_prompt="A hall."),
+    ], cover_prompt="A ledger.", cover_illustration_enabled=False)
+    chapters, _ = assemble(p)
+    out = companion_text(p, {"title": "T", "author": "", "tagline": "", "blurb": ""}, chapters)
+    assert "COVER PROMPT:\n(disabled)" in out
+    assert "Chapter 1: Title 1\n    (disabled)" in out
+    assert "Chapter 2: Title 2\n    A hall." in out
+
+
+def test_context_dump_collects_every_artefact(tmp_path):
+    from backend.models.schemas import ContextElement, PlantedClue, VoiceProfile, VoiceStage
+    from backend.utils.manuscript import context_dump
+    now = datetime.now().isoformat()
+    p = project(
+        [chap(1, full_text="prose", approved=True, intention="open", skeleton="skel", summary="sum",
+              critic_output="crit", story_state={"chapter": 1, "open_threads": ["who?"]},
+              illustration_prompt="A quay.")],
+        creative_dump="dump", role_constraints="rules", premise="prem", premise_summary="psum",
+        characters="chars", world_notes="world", style_guide="guide", style_sample="sample",
+        plotter_output="plot", antagonist_output="antag", plotter_revision_output="rev",
+        continuity_output='{"verdict":"approve"}', author="A", tagline="tag", blurb="blurb", cover_prompt="cover",
+        planted_clues=[PlantedClue(id="c", label="Key", description="brass", planted_in="1", pays_off_in="3")],
+        voice_profiles=[VoiceProfile(id="v", name="Mara", stages=[VoiceStage(label="all", voice="dry")])],
+        context_elements=[ContextElement(id="e", label="Premise", content="prem", element_type="premise", phase="A",
+                                         order=0, enabled=False, token_count=3, source="human",
+                                         created_at=now, updated_at=now)],
+    )
+    md = context_dump(p)
+    for needle in ["# The Harbour Ledger — context artefacts", "## Creative dump\n\ndump", "## Role & constraints\n\nrules",
+                   "## Premise / plot bible\n\nprem", "## Style guide\n\nguide", "## Writing sample\n\nsample",
+                   "### Mara", "**all** (ch 1–end)", "dry", "**Key** [active] — brass · planted: 1 · pays off: 3",
+                   "## Plotter output\n\nplot", "## Antagonist critique\n\nantag", "## Plotter revision\n\nrev",
+                   "## [off] Premise  ·  premise · human · 3 tok", "## Chapter 1: Title 1  ·  approved",
+                   "## Skeleton\n\nskel", "## Critic output\n\ncrit", '"open_threads": [\n  "who?"\n ]',
+                   "## Illustration prompt\n\nA quay.", "## Cover prompt\n\ncover", "## Blurb\n\nblurb"]:
+        assert needle in md, needle
+
+    res = export_manuscript(p, "md", "", False, str(tmp_path))
+    ctx_path = os.path.join(tmp_path, res["slug"], "export", res["context_file"])
+    assert res["context_file"].endswith("_context.md") and os.path.isfile(ctx_path)
+
+
 def test_companion_lists_missing_prompts():
     p = project([chap(1, full_text="t", approved=True)])
     chapters, _ = assemble(p)

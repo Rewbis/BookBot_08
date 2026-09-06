@@ -3,6 +3,7 @@
 __pycache__/
 *.pyc
 node_modules/
+.bookbot_settings.json
 
 # ── Book content stays local. Nothing the author writes, feeds in, or the agents
 #    produce is committed: snapshots, per-call prompt/output logs, private notes,

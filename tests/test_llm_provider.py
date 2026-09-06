@@ -15,8 +15,8 @@ class FakeService:
         return f"{self.model}:ok"
 
 
-def make(default="claude"):
-    p = LLMProvider(default=default)
+def make(default="claude", settings_path=None):
+    p = LLMProvider(default=default, settings_path=settings_path)
     p._claude = FakeService("claude-sonnet-5")
     p._ollama = FakeService("qwen3-local")
     return p
@@ -24,11 +24,34 @@ def make(default="claude"):
 
 def test_default_is_claude_and_env_is_respected(monkeypatch):
     monkeypatch.delenv("LLM_PROVIDER", raising=False)
-    assert LLMProvider().current == "claude"
+    assert LLMProvider(settings_path=None).current == "claude"
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
-    assert LLMProvider().current == "ollama"
+    assert LLMProvider(settings_path=None).current == "ollama"
     monkeypatch.setenv("LLM_PROVIDER", "nonsense")
-    assert LLMProvider().current == "claude"
+    assert LLMProvider(settings_path=None).current == "claude"
+
+
+def test_choice_persists_across_restart(tmp_path, monkeypatch):
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    path = str(tmp_path / "settings.json")
+    p = make(settings_path=path)
+    p.set("ollama")
+    assert (tmp_path / "settings.json").is_file()
+    # "restart": a fresh instance reads the file, and the file beats the env default
+    monkeypatch.setenv("LLM_PROVIDER", "claude")
+    assert LLMProvider(settings_path=path).current == "ollama"
+    # other keys in the file survive a save
+    (tmp_path / "settings.json").write_text('{"provider": "ollama", "other": 1}', encoding="utf-8")
+    p2 = make(settings_path=path)
+    p2.set("claude")
+    import json
+    assert json.loads((tmp_path / "settings.json").read_text(encoding="utf-8")) == {"provider": "claude", "other": 1}
+
+
+def test_corrupt_settings_file_is_ignored(tmp_path):
+    path = tmp_path / "settings.json"
+    path.write_text("{not json", encoding="utf-8")
+    assert LLMProvider(default="claude", settings_path=str(path)).current == "claude"
 
 
 def test_set_validates():

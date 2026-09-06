@@ -290,8 +290,10 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     margin-top: 10px;
     width: 100%;
     resize: vertical;
-    overflow: hidden;
+    /* Auto-grows to fit (see autoResize) up to a cap, then scrolls. Never clips silently. */
+    overflow-y: auto;
     min-height: 5em;
+    max-height: 70vh;
     box-sizing: border-box;
 }
 .accepted-output { border-left: 4px solid var(--btn-success); }
@@ -743,6 +745,8 @@ hr { border: 0; border-top: 1px solid var(--border-color); margin: 20px 0; }
 .export-link.secondary { background: var(--btn-secondary); }
 .export-link:hover { filter: brightness(1.1); }
 .export-warnings { margin: 8px 0 0; padding-left: 18px; color: var(--accent-color); font-size: 0.82rem; }
+.export-invalid { color: var(--btn-danger); font-weight: 600; margin-top: 8px; }
+.illo-toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; color: #bbb; cursor: pointer; margin-bottom: 4px; }
 #export-status.err { color: var(--btn-danger); }
 
 /* Per-chapter continuity (Phase C card) */
@@ -989,8 +993,8 @@ thead .field-col { z-index: 3; }
     /* Metadata row: stack */
     .metadata-row { flex-direction: column; gap: 10px; }
 
-    /* Streaming outputs: allow scroll on mobile rather than unbounded height */
-    .streaming-output { max-height: 60vh; overflow-y: auto; resize: none; }
+    /* Streaming outputs: tighter cap on phones */
+    .streaming-output { max-height: 60vh; resize: none; }
 }
 
 /* CRUD cell operation badges */

@@ -46,6 +46,8 @@ def test_export_md_then_download(client):
 
     comp = client.get(d["companion_url"])
     assert comp.status_code == 200 and "TITLE: Round Trip" in comp.text
+    ctx = client.get(d["context_url"])
+    assert ctx.status_code == 200 and "# Round Trip — context artefacts" in ctx.text
 
 
 def test_export_epub_content_type(client):
@@ -65,6 +67,30 @@ def test_export_rejects_bad_format_and_empty_book(client):
     assert r.status_code == 400 and "approve" in r.json()["detail"].lower()
     r = client.post("/api/export/manuscript", json={"project": proj, "format": "md", "include_unapproved": True})
     assert r.status_code == 200 and any("not approved" in w for w in r.json()["warnings"])
+
+
+def test_validate_endpoint_guards(client):
+    proj = approved_project(client)
+    md = client.post("/api/export/manuscript", json={"project": proj, "format": "md"}).json()
+    r = client.post("/api/export/validate", json={"slug": md["slug"], "filename": md["filename"]})
+    assert r.status_code == 400 and "epub" in r.json()["detail"]
+    r = client.post("/api/export/validate", json={"slug": "round_trip", "filename": "missing.epub"})
+    assert r.status_code == 404
+    r = client.post("/api/export/validate", json={"slug": "../x", "filename": "a.epub"})
+    assert r.status_code == 400
+
+
+def test_validate_endpoint_returns_a_result_shape(client):
+    proj = approved_project(client)
+    ep = client.post("/api/export/manuscript", json={"project": proj, "format": "epub"}).json()
+    r = client.post("/api/export/validate", json={"slug": ep["slug"], "filename": ep["filename"]})
+    assert r.status_code == 200
+    d = r.json()
+    assert "available" in d
+    if d["available"]:
+        assert set(d) >= {"valid", "errors", "warnings", "messages", "version"}
+    else:
+        assert d["reason"]
 
 
 def test_download_refuses_traversal_and_missing(client):
