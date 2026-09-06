@@ -681,6 +681,44 @@ hr { border: 0; border-top: 1px solid var(--border-color); margin: 20px 0; }
 .voice-range-hint { color: #666; font-size: 0.72rem; }
 .voice-text { width: 100%; box-sizing: border-box; font-size: 0.85rem; min-height: 4em; }
 
+/* ── Phase C chapter cards ─────────────────────────────────────── */
+.phase-c-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+.phase-c-controls { display: flex; gap: 15px; align-items: center; }
+.chapter-c-card {
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+.chapter-c-card.approved-chapter { border-color: var(--btn-success); }
+.chapter-c-card .top-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.chapter-number-badge {
+    background-color: var(--btn-primary); color: #fff;
+    font-size: 0.8rem; padding: 3px 6px; border-radius: 3px; font-weight: bold;
+}
+.word-count-badge { font-size: 0.75rem; color: #999; font-family: monospace; white-space: nowrap; }
+.chapter-c-expanded { margin-top: 15px; display: flex; flex-direction: column; gap: 10px; }
+.summary-subsection { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+
+/* Pass progress: draft → enrich → critic → polish → continuity */
+.progress-pills { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.progress-pill {
+    font-size: 0.72rem; padding: 2px 8px; border-radius: 10px;
+    border: 1px solid #444; color: #777; background: transparent;
+    letter-spacing: 0.02em; transition: background 0.2s, color 0.2s;
+}
+.progress-pill + .progress-pill::before { content: '›'; margin-right: 6px; color: #555; }
+.progress-pill.complete { border-color: var(--btn-success); color: var(--btn-success); }
+.progress-pill.complete::after { content: ' ✓'; }
+.progress-pill.active {
+    border-color: var(--accent-color); color: var(--accent-color);
+    background: rgba(240, 165, 0, 0.12);
+    text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 2px;
+    animation: pill-pulse 1.2s ease-in-out infinite;
+}
+@keyframes pill-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
 /* Per-chapter continuity (Phase C card) */
 .continuity-subsection { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
 .cont-badge {

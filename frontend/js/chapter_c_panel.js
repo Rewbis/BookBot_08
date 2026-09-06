@@ -2,6 +2,9 @@ window.ChapterCPanel = {
     expandedIds: new Set(),
     isGenerating: false,
     isBulkGenerating: false,
+    // Which chapter + pass is running right now (drives the highlighted progress pill)
+    generatingId: null,
+    currentPass: null,
 
     init() {
         this.container = document.getElementById('chapter-c-cards-container');
@@ -109,10 +112,10 @@ window.ChapterCPanel = {
 
         const { context_elements, clues_due, prior_state } = this.buildSharedContext(ch);
         const wasGenerating = this.isGenerating;
+        const prevId = this.generatingId, prevPass = this.currentPass;
         this.isGenerating = true;
         document.body.style.cursor = 'wait';
-        this.updateStatus(`Continuity check: chapter ${ch.number}…`);
-        if (!fromPipeline) this.renderAllChapters();
+        this.setPass(ch, 'continuity', `Continuity check: chapter ${ch.number}…`);
 
         try {
             const res = await fetch('/api/llm/chapter-continuity', {
@@ -144,6 +147,7 @@ window.ChapterCPanel = {
             ch.continuity_verdict = '';
         } finally {
             this.isGenerating = wasGenerating;
+            if (wasGenerating) { this.generatingId = prevId; this.currentPass = prevPass; } else { this.clearPass(); }
             if (!wasGenerating) document.body.style.cursor = 'default';
             this.updateStatus('');
             this.renderAllChapters();
@@ -192,8 +196,9 @@ window.ChapterCPanel = {
         });
     },
 
+    PASSES: ['draft', 'enrich', 'critic', 'polish', 'continuity'],
+
     getPassStatus(ch) {
-        const passes = ['draft', 'enrich', 'critic', 'polish', 'continuity'];
         const draftMap = {
             draft: ch.draft_text,
             enrich: ch.enrich_draft,
@@ -201,10 +206,26 @@ window.ChapterCPanel = {
             polish: ch.polish_draft,
             continuity: ch.continuity_verdict && !ch.state_stale
         };
-        return passes.map(p => ({
+        const running = this.generatingId === ch.id ? this.currentPass : null;
+        return this.PASSES.map(p => ({
             name: p,
-            done: !!(draftMap[p])
+            done: !!(draftMap[p]),
+            active: p === running
         }));
+    },
+
+    // Mark the pass now running for a chapter, update the status line, and re-render
+    // so the active pill lights up while the call is in flight.
+    setPass(ch, pass, statusMsg) {
+        this.generatingId = ch.id;
+        this.currentPass = pass;
+        this.updateStatus(statusMsg);
+        this.renderAllChapters();
+    },
+
+    clearPass() {
+        this.generatingId = null;
+        this.currentPass = null;
     },
 
     countWords(text) {
@@ -228,7 +249,8 @@ window.ChapterCPanel = {
         const wordCount = this.countWords(latestDraft);
 
         const pillsHtml = passes.map(p =>
-            `<span class="progress-pill ${p.done ? 'complete' : 'pending'}">${p.name}</span>`
+            `<span class="progress-pill ${p.done ? 'complete' : 'pending'}${p.active ? ' active' : ''}"
+                   title="${p.active ? 'running now' : p.done ? 'done' : 'not yet run'}">${p.name}</span>`
         ).join('');
 
         // Top bar
@@ -415,7 +437,7 @@ window.ChapterCPanel = {
 
         try {
             // Pass 1: Draft (actions + sensory atmosphere + dialogue placeholders)
-            this.updateStatus('Writing draft...');
+            this.setPass(ch, 'draft', 'Writing draft...');
             let res = await fetch('/api/llm/chapter-draft', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(basePayload)
@@ -426,7 +448,7 @@ window.ChapterCPanel = {
             this.renderAllChapters();
 
             // Pass 2: Enrich (dialogue + sensory layering + style + De-AI)
-            this.updateStatus('Enriching draft...');
+            this.setPass(ch, 'enrich', 'Enriching draft...');
             res = await fetch('/api/llm/chapter-enrich', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({...basePayload, current_draft: ch.draft_text})
@@ -459,7 +481,7 @@ window.ChapterCPanel = {
             const rounds = 1;
             for (let i = 0; i < rounds; i++) {
                 // Critic
-                this.updateStatus(`Critic pass ${i + 1} of ${rounds}...`);
+                this.setPass(ch, 'critic', `Critic pass ${i + 1} of ${rounds}...`);
                 res = await fetch('/api/llm/chapter-critic', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
@@ -474,7 +496,7 @@ window.ChapterCPanel = {
                 this.renderAllChapters();
 
                 // Polish
-                this.updateStatus(`Polish pass ${i + 1} of ${rounds}...`);
+                this.setPass(ch, 'polish', `Polish pass ${i + 1} of ${rounds}...`);
                 res = await fetch('/api/llm/chapter-polish', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
@@ -514,6 +536,7 @@ window.ChapterCPanel = {
             ch.phase_c_status = ch.phase_c_status || 'not_started';
         } finally {
             this.isGenerating = false;
+            this.clearPass();
             document.body.style.cursor = 'default';
             this.updateStatus('');
             this.renderAllChapters();
@@ -553,7 +576,7 @@ window.ChapterCPanel = {
 
         try {
             // Critic
-            this.updateStatus('Re-running critic...');
+            this.setPass(ch, 'critic', 'Re-running critic...');
             let res = await fetch('/api/llm/chapter-critic', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(basePayload)
@@ -562,7 +585,7 @@ window.ChapterCPanel = {
             ch.critic_output = data.content;
 
             // Polish
-            this.updateStatus('Polishing...');
+            this.setPass(ch, 'polish', 'Polishing...');
             res = await fetch('/api/llm/chapter-polish', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({...basePayload, critic_feedback: ch.critic_output})
@@ -578,6 +601,7 @@ window.ChapterCPanel = {
             console.error('Re-run critic error:', e);
         } finally {
             this.isGenerating = false;
+            this.clearPass();
             document.body.style.cursor = 'default';
             this.updateStatus('');
             this.renderAllChapters();

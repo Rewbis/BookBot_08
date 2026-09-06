@@ -54,6 +54,43 @@ describe("cluesDueFor", () => {
   });
 });
 
+describe("progress pills", () => {
+  it("marks completed passes and only the running pass of the generating chapter", () => {
+    const c1 = ch(1, { draft_text: "d", enrich_draft: "e" });
+    const c2 = ch(2, { draft_text: "d" });
+    CC().generatingId = c1.id;
+    CC().currentPass = "critic";
+    const s1 = Object.fromEntries(CC().getPassStatus(c1).map(p => [p.name, p]));
+    expect(s1.draft).toMatchObject({ done: true, active: false });
+    expect(s1.enrich).toMatchObject({ done: true, active: false });
+    expect(s1.critic).toMatchObject({ done: false, active: true });
+    expect(s1.polish).toMatchObject({ done: false, active: false });
+    expect(s1.continuity).toMatchObject({ done: false, active: false });
+    // another chapter is never "active", even at the same pass name
+    expect(CC().getPassStatus(c2).every(p => !p.active)).toBe(true);
+    CC().clearPass();
+    expect(CC().getPassStatus(c1).every(p => !p.active)).toBe(true);
+  });
+
+  it("continuity pill is done only when checked and not stale", () => {
+    expect(CC().getPassStatus(ch(1, { continuity_verdict: "approve" })).at(-1).done).toBe(true);
+    expect(CC().getPassStatus(ch(1, { continuity_verdict: "approve", state_stale: true })).at(-1).done).toBe(false);
+  });
+
+  it("setPass records the chapter and pass and updates the status line", () => {
+    const statuses = [];
+    CC().updateStatus = m => statuses.push(m);
+    CC().renderAllChapters = () => {};
+    const c = ch(4);
+    CC().setPass(c, "enrich", "Enriching draft...");
+    expect(CC().generatingId).toBe(c.id);
+    expect(CC().currentPass).toBe("enrich");
+    expect(statuses).toEqual(["Enriching draft..."]);
+    CC().clearPass();
+    expect(CC().generatingId).toBeNull();
+  });
+});
+
 describe("story state helpers", () => {
   it("hasState is false for missing or empty state", () => {
     expect(CC().hasState(ch(1))).toBe(false);
