@@ -65,8 +65,7 @@ window.ResearchPanel = {
         document.getElementById('research-approve-row').style.display = 'none';
 
         const title = document.getElementById('project-title')?.value || 'unknown';
-        let rawText = '';
-        let sourceLabel = '';
+        let rawText, sourceLabel;   // both branches assign before use
 
         try {
             if (mode === 'url') {

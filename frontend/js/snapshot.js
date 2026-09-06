@@ -3,7 +3,7 @@ window.Snapshot = {
         const title = document.getElementById('project-title').value;
 
         // Suggest filename
-        let filename = "";
+        let filename;
         try {
             const res = await fetch('/api/project/suggest-filename?title=' + encodeURIComponent(title));
             const data = await res.json();

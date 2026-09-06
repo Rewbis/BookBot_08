@@ -1,0 +1,20 @@
+{
+  "name": "bookbot-08-frontend-tooling",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Lint + unit tests for the vanilla-JS frontend. There is deliberately no build step: FastAPI serves frontend/ as-is.",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint frontend/js tests/js",
+    "test:js": "vitest run",
+    "test:js:watch": "vitest",
+    "check": "pnpm lint && pnpm test:js"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.10.0",
+    "globals": "^17.12.0",
+    "jsdom": "^30.0.1",
+    "vitest": "^5.0.0"
+  }
+}

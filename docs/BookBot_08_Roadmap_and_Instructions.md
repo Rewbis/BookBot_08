@@ -59,8 +59,11 @@ BookBot_08/
 ├── docs/
 │   ├── architecture_matrix.yaml # hand-edited CRUD matrix + model routing (never written at runtime)
 │   └── BookBot_08_Roadmap_and_Instructions.md   # this file
-├── tests/                       # pytest — see Testing section
+├── tests/                       # pytest (backend) + tests/js/ (Vitest, frontend) — see Testing
 ├── pytest.ini                   # testpaths=tests, pythonpath=.
+├── package.json                 # pnpm scripts: lint, test:js, check — dev tooling only, no build step
+├── eslint.config.js             # ESLint flat config; declares the window.* module globals
+├── vitest.config.js             # jsdom environment, tests/js/**/*.test.js
 ├── author_notes/                # human-only notes; the app never reads this folder (tracked in git)
 ├── projects/                    # JSON snapshots (gitignored)
 ├── logs/                        # per-call LLM logs (gitignored)
@@ -250,7 +253,21 @@ cd E:\Coding\BookBot_08 && .venv\Scripts\python.exe -m pytest -q
 - `test_llm_json.py` — fence-tolerant JSON parsing used by continuity, parse-dump, chapter-plan
 - `test_token_service.py`, `test_ollama_service.py` — counting rules, `strip_thinking()`
 
-Not covered: anything that calls Claude/Tavily (`llm.py`, `research.py` instantiate their clients at import, so those modules are not imported by tests), and all frontend JS.
+Not covered: anything that calls Claude/Tavily (`llm.py`, `research.py` instantiate their clients at import, so those modules are not imported by tests).
+
+**Frontend (Node 24 / pnpm — dev tooling only; the app itself still has no build step):**
+
+```bash
+pnpm install && pnpm check
+```
+
+`pnpm lint` runs ESLint (flat config, `js.configs.recommended`) over `frontend/js` and `tests/js`. `pnpm test:js` runs Vitest in jsdom. `tests/js/load.js` evaluates each classic-script module in the jsdom window exactly as a `<script>` tag would, so the modules are tested as written — no bundling, no ESM conversion.
+- `scripts_load.test.js` — every module parses and evaluates; expected `window.*` globals exist (the syntax guard that was missing during the mobile debugging)
+- `chapter_c_panel.test.js` — clue-to-chapter matching, `cluesDueFor`, `priorStateFor` across gaps, `markDownstreamStale`, `buildSharedContext` (approved-only summaries, 500-word tail)
+- `context_panel.test.js` — token estimate, `compressedAlternative` (source_ref, label fallback, premise), `exportElementsForLLM` ordering
+- `app.test.js` — `formatContinuityReport`, layout-mode functions defined at parse time
+
+Not covered on the JS side: anything that touches the DOM through `init()` or makes `fetch` calls.
 
 ---
 
@@ -308,8 +325,8 @@ Cover blurb, illustration prompts per chapter, EPUB via `ebooklib`, KDP validati
 - Prompt caching is not yet used: the context block is identical across the ~7 calls of a chapter run and a cache breakpoint on it would cut input cost by roughly 90% on the repeats.
 - Context window is a flat ordered list — nothing is retrieved per-chapter by relevance; everything enabled goes into every call.
 - Token counter is a cl100k approximation.
-- Frontend has no automated tests.
-- `?v=N` cache-busting is manual.
+- Frontend tests cover pure logic only; DOM wiring and fetch flows are verified by hand in the browser.
+- `?v=N` cache-busting is manual (a bundler would fix this but would add the build step the project avoids on purpose).
 
 ---
 

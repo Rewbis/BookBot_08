@@ -68,9 +68,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // 3. Setup tabs
-    const tabs = document.querySelectorAll('.tab-btn');
-    const contents = document.querySelectorAll('.tab-content');
-    tabs.forEach(t => t.addEventListener('click', () => window._switchTab(t)));
+    document.querySelectorAll('.tab-btn').forEach(t => t.addEventListener('click', () => window._switchTab(t)));
 
 
     // 3b. Resizable panel divider
